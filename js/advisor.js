@@ -3,7 +3,7 @@ const Advisor = {
     return !!Store.getApiKey();
   },
 
-  async callGemini(systemPrompt, userPrompt) {
+  async callGemini(systemPrompt, userPrompt, maxTokens) {
     const apiKey = (Store.getApiKey() || '').trim();
     if (!apiKey) throw new Error('API key non configurata. Vai alla tab Impostazioni.');
 
@@ -19,7 +19,7 @@ const Advisor = {
       },
       generationConfig: {
         temperature: 0.3,
-        maxOutputTokens: 1024
+        maxOutputTokens: maxTokens || 1024
       }
     };
 
@@ -206,5 +206,113 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
     } catch (e) {
       return { recommended_call: { name: 'N/A', reason: 'Risposta AI non valida: ' + raw.substring(0, 120) }, cached: false };
     }
+  },
+
+  buildPreAstaContext() {
+    const config = Store.getConfig();
+    const participants = Store.getParticipants();
+    const teams = Store.getTeams();
+    const roles = Store.getConfiguredRoles();
+    const wishlist = Store.getWishlist();
+    const players = Store.getPlayers();
+
+    const meName = config ? config.myName : (participants[0]?.name || '');
+    const meTeam = teams[meName] || { credits: config.credits, roster: { P: [], D: [], C: [], A: [] } };
+
+    const meCtx = { budget: meTeam.credits, slots_left: {}, bought: {} };
+    ['P', 'D', 'C', 'A'].forEach(r => {
+      meCtx.bought[r] = meTeam.roster[r] ? meTeam.roster[r].length : 0;
+      meCtx.slots_left[r] = (roles[r] || 0) - meCtx.bought[r];
+    });
+
+    const opponents = participants
+      .filter(p => p.name !== meName)
+      .map(p => {
+        const t = teams[p.name] || { credits: config.credits, roster: { P: [], D: [], C: [], A: [] } };
+        const ctx = { name: p.name, budget: t.credits, slots_left: {}, bought: {} };
+        ['P', 'D', 'C', 'A'].forEach(r => {
+          ctx.bought[r] = t.roster[r] ? t.roster[r].length : 0;
+          ctx.slots_left[r] = (roles[r] || 0) - ctx.bought[r];
+        });
+        return ctx;
+      });
+
+    const available = players;
+    const topAvailable = {};
+    ['P', 'D', 'C', 'A'].forEach(r => {
+      const needed = meCtx.slots_left[r] || 0;
+      if (needed > 0) {
+        topAvailable[r] = available
+          .filter(p => p.R === r)
+          .sort((a, b) => b.FVM - a.FVM)
+          .slice(0, 10)
+          .map(p => ({ name: p.Nome, team: p.Squadra, qtA: p.QtA, fvm: p.FVM }));
+      }
+    });
+
+    const availableWishlist = wishlist
+      .map(w => {
+        const p = players.find(pl => pl.Nome.toLowerCase().includes(w.name.toLowerCase()));
+        return p ? { name: p.Nome, role: p.R, team: p.Squadra, qtA: p.QtA, fvm: p.FVM, priority: w.priority } : null;
+      })
+      .filter(Boolean);
+
+    const marketRemaining = { P: 0, D: 0, C: 0, A: 0 };
+    players.forEach(p => {
+      if (marketRemaining[p.R] !== undefined) marketRemaining[p.R]++;
+    });
+
+    return {
+      league: { name: config.leagueName, participants: participants.length, credits: config.credits, min_bid: config.minBid },
+      roster: roles,
+      me: meCtx,
+      opponents,
+      my_wishlist: availableWishlist,
+      market_remaining: marketRemaining,
+      top_available: topAvailable
+    };
+  },
+
+  PREASTA_SYSTEM_PROMPT: `Sei un esperto di fantacalcio italiano. Asta all'italiana con rilancio variabile.
+Devi generare un piano strategico completo PRIMA dell'asta, basandoti sulle quotazioni e sulle impostazioni della lega.
+Rispondi ESATTAMENTE con un JSON valido, senza testo aggiuntivo.
+
+Formato JSON richiesto:
+{
+  "target_players": {
+    "P": [{"name":"...","reason":"...","max_price":N}],
+    "D": [{"name":"...","reason":"...","max_price":N}],
+    "C": [{"name":"...","reason":"...","max_price":N}],
+    "A": [{"name":"...","reason":"...","max_price":N}]
+  },
+  "value_picks": [{"name":"...","role":"...","reason":"...","max_price":N}],
+  "budget_strategy": {
+    "P": "consiglio spesa portieri",
+    "D": "consiglio spesa difensori",
+    "C": "consiglio spesa centrocampisti",
+    "A": "consiglio spesa attaccanti"
+  },
+  "bluff_targets": [{"opponent":"...","strategy":"..."}],
+  "general_tips": ["consiglio 1","consiglio 2","consiglio 3"]
+}
+
+Regole:
+- Includi 3-5 target_players per ruolo che hai slot liberi, ordinati per valore FVM/QtA
+- max_price = prezzo massimo consigliato in crediti (considera media mercato e budget residuo)
+- value_picks = acquisti sottovalutati (FVM alto, QtA basso)
+- budget_strategy = come distribuire i crediti tra i ruoli (percentuali o intervalli)
+- bluff_targets = avversari con molti crediti da far spendere
+- general_tips = 3-5 consigli strategici generali
+- Considera che molti giocatori verranno comprati da altri: sii realistico sui prezzi
+- Se un giocatore nella wishlist ha QtA molto alto, valuta se è realmente raggiungibile`,
+
+  async getPreAstaPlan() {
+    const ctx = this.buildPreAstaContext();
+    const userPrompt = `Genera un piano strategico completo pre-asta per la mia squadra.\n\nContesto lega:\n${JSON.stringify(ctx, null, 2)}\n\nRispondi SOLO con JSON valido secondo il formato richiesto.`;
+    const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
+    const result = this.extractJson(raw);
+    result.generated_at = Date.now();
+    Store.savePreAstaPlan(result);
+    return result;
   }
 };

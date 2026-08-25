@@ -46,6 +46,9 @@ const Store = {
   saveApiKey(key) { this._set('api_key', key); },
   getApiKey() { return this._get('api_key') || ''; },
 
+  savePreAstaPlan(plan) { this._set('preasta_plan', plan); },
+  getPreAstaPlan() { return this._get('preasta_plan'); },
+
   getAiCache() { return this._get('ai_cache') || {}; },
   saveAiCache(cache) { this._set('ai_cache', cache); },
 
@@ -239,7 +242,7 @@ const Store = {
 
   exportAll() {
     const data = {};
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan'];
     keys.forEach(k => { data[k] = this._get(k); });
     return JSON.stringify(data, null, 2);
   },
@@ -257,7 +260,7 @@ const Store = {
   },
 
   clearAll() {
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan'];
     keys.forEach(k => this._remove(k));
   },
 

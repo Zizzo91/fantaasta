@@ -1,5 +1,5 @@
 const Dashboard = {
-  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'player-compare'],
+  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'preasta-planner', 'player-compare'],
 
   init() {
     document.getElementById('btn-share').addEventListener('click', () => this.generateShareImage());
@@ -96,6 +96,7 @@ const Dashboard = {
       this.renderMarketRemaining();
       this.renderWishlistStatus();
       this.renderBudgetSimulator();
+      this.renderPreAstaPlanner();
       this.renderPlayerCompare();
     }
 
@@ -507,6 +508,116 @@ const Dashboard = {
 
     priceInput.addEventListener('input', updateResult);
     document.getElementById('sim-team').addEventListener('change', updateResult);
+  },
+
+  renderPreAstaPlanner() {
+    const container = document.getElementById('preasta-planner');
+    const plan = Store.getPreAstaPlan();
+    const config = Store.getConfig();
+    const hasPlayers = Store.getPlayers().length > 0;
+
+    if (!hasPlayers) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Carica il CSV delle quotazioni prima.</p>';
+      return;
+    }
+
+    if (plan) {
+      const date = new Date(plan.generated_at).toLocaleString('it-IT');
+      let html = `<div class="preasta-meta">Generato il ${date}</div>`;
+
+      if (plan.target_players) {
+        const roleLabels = { P: 'Portieri', D: 'Difensori', C: 'Centrocampisti', A: 'Attaccanti' };
+        ['P', 'D', 'C', 'A'].forEach(r => {
+          const list = plan.target_players[r];
+          if (!list || list.length === 0) return;
+          const needed = (config ? (parseInt(config['roster' + r]) || 0) : 0);
+          if (needed <= 0) return;
+          html += `<div class="preasta-section">
+            <h4>${roleLabels[r]} <span class="preasta-badge">${list.length} obiettivi</span></h4>
+            <div class="preasta-targets">`;
+          list.forEach(p => {
+            html += `<div class="preasta-target">
+              <span class="preasta-name">${p.name}</span>
+              <span class="preasta-price">${p.max_price}cr</span>
+              <span class="preasta-reason">${p.reason || ''}</span>
+            </div>`;
+          });
+          html += '</div></div>';
+        });
+      }
+
+      if (plan.value_picks && plan.value_picks.length > 0) {
+        html += '<div class="preasta-section"><h4>Affari <span class="preasta-badge">value</span></h4><div class="preasta-targets">';
+        plan.value_picks.forEach(p => {
+          html += `<div class="preasta-target">
+            <span class="preasta-name">${p.name}</span>
+            <span class="preasta-role">${p.role}</span>
+            <span class="preasta-price">${p.max_price}cr</span>
+            <span class="preasta-reason">${p.reason || ''}</span>
+          </div>`;
+        });
+        html += '</div></div>';
+      }
+
+      if (plan.budget_strategy) {
+        html += '<div class="preasta-section"><h4>Strategia Budget</h4><div class="preasta-budget">';
+        ['P', 'D', 'C', 'A'].forEach(r => {
+          const tip = plan.budget_strategy[r];
+          if (tip) {
+            html += `<div class="preasta-budget-row"><span class="preasta-budget-role">${r}</span><span>${tip}</span></div>`;
+          }
+        });
+        html += '</div></div>';
+      }
+
+      if (plan.bluff_targets && plan.bluff_targets.length > 0) {
+        html += '<div class="preasta-section"><h4>Bluff Consigliati</h4><ul class="preasta-list">';
+        plan.bluff_targets.forEach(b => {
+          html += `<li><strong>${b.opponent}</strong>: ${b.strategy}</li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      if (plan.general_tips && plan.general_tips.length > 0) {
+        html += '<div class="preasta-section"><h4>Consigli Generali</h4><ul class="preasta-list">';
+        plan.general_tips.forEach(t => {
+          html += `<li>${t}</li>`;
+        });
+        html += '</ul></div>';
+      }
+
+      html += '<div class="preasta-actions"><button id="btn-regenerate-plan" class="btn btn-secondary btn-small">Rigenera Piano</button></div>';
+      container.innerHTML = html;
+
+      document.getElementById('btn-regenerate-plan').addEventListener('click', () => this.generatePreAstaPlan(true));
+    } else {
+      container.innerHTML = `
+        <div class="preasta-empty">
+          <p>Genera un piano strategico completo per la tua asta con <strong>1 singola chiamata AI</strong>.</p>
+          <p class="preasta-tip">Consigliato farlo il giorno prima dell'asta per evitare di saturare le chiamate AI il giorno dell'asta.</p>
+          <button id="btn-generate-plan" class="btn btn-primary">Genera Piano Pre-Asta</button>
+        </div>
+      `;
+      document.getElementById('btn-generate-plan').addEventListener('click', () => this.generatePreAstaPlan(false));
+    }
+  },
+
+  async generatePreAstaPlan(force) {
+    if (force || !Store.getPreAstaPlan()) {
+      if (!confirm('Generare il piano strategico pre-asta?\n\nConsigliato farlo il giorno prima dell\'asta per evitare di saturare le chiamate AI il giorno dell\'asta.')) return;
+    }
+
+    const container = document.getElementById('preasta-planner');
+    const originalHtml = container.innerHTML;
+    container.innerHTML = '<div class="preasta-loading">AI sta generando il piano strategico...</div>';
+
+    try {
+      await Advisor.getPreAstaPlan();
+      this.renderPreAstaPlanner();
+    } catch (err) {
+      container.innerHTML = `<div class="preasta-error">Errore: ${err.message}</div><div style="margin-top:0.5rem"><button id="btn-retry-plan" class="btn btn-secondary btn-small">Riprova</button></div>`;
+      document.getElementById('btn-retry-plan').addEventListener('click', () => this.generatePreAstaPlan(force));
+    }
   },
 
   renderPlayerCompare() {

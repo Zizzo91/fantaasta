@@ -1251,6 +1251,155 @@ textarea {
   background: var(--text-muted);
 }
 
+/* Pre-Asta Planner */
+.preasta-empty {
+  text-align: center;
+}
+
+.preasta-empty p {
+  margin-bottom: 0.75rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.preasta-tip {
+  font-size: 0.78rem !important;
+  color: var(--warning) !important;
+  font-style: italic;
+  background: rgba(251, 191, 36, 0.08);
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  border-radius: 6px;
+  padding: 0.5rem 0.75rem;
+}
+
+.preasta-loading {
+  text-align: center;
+  color: var(--primary);
+  font-size: 0.85rem;
+  padding: 1.5rem 0;
+}
+
+.preasta-error {
+  color: var(--danger);
+  font-size: 0.85rem;
+  text-align: center;
+  padding: 0.75rem;
+  background: rgba(248, 113, 113, 0.08);
+  border: 1px solid rgba(248, 113, 113, 0.2);
+  border-radius: 6px;
+}
+
+.preasta-meta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
+}
+
+.preasta-section {
+  margin-bottom: 1rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.preasta-section:last-child {
+  border-bottom: none;
+  margin-bottom: 0;
+}
+
+.preasta-section h4 {
+  margin-bottom: 0.5rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.preasta-badge {
+  font-size: 0.65rem;
+  background: rgba(79, 140, 255, 0.15);
+  color: var(--primary);
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+  font-weight: 500;
+}
+
+.preasta-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.preasta-target {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.82rem;
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.preasta-target:last-child {
+  border-bottom: none;
+}
+
+.preasta-name {
+  font-weight: 500;
+}
+
+.preasta-role {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.preasta-price {
+  font-weight: 600;
+  color: var(--warning);
+  text-align: right;
+}
+
+.preasta-reason {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  grid-column: 1 / -1;
+}
+
+.preasta-budget {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.82rem;
+}
+
+.preasta-budget-row {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.preasta-budget-role {
+  font-weight: 600;
+  color: var(--text-muted);
+  min-width: 16px;
+}
+
+.preasta-list {
+  list-style: none;
+  padding: 0;
+  font-size: 0.82rem;
+}
+
+.preasta-list li {
+  padding: 0.3rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.preasta-list li:last-child {
+  border-bottom: none;
+}
+
+.preasta-actions {
+  margin-top: 0.75rem;
+  text-align: right;
+}
+
 /* PWA safe areas */
 @supports (padding: env(safe-area-inset-*)) {
   body {
