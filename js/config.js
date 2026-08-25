@@ -181,11 +181,111 @@ const Config = {
 
   bindWishlist() {
     const textarea = document.getElementById('wishlist-input');
+    const suggestions = document.getElementById('wishlist-suggestions');
+    let activeIndex = -1;
+
     const updateCount = () => {
       const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
       document.getElementById('wishlist-count').textContent = `${lines.length} calciatori in wishlist`;
     };
-    textarea.addEventListener('input', updateCount);
+
+    const getCurrentLine = () => {
+      const val = textarea.value;
+      const pos = textarea.selectionStart;
+      const before = val.substring(0, pos);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      return val.substring(lineStart, pos);
+    };
+
+    const replaceCurrentLine = (name) => {
+      const val = textarea.value;
+      const pos = textarea.selectionStart;
+      const before = val.substring(0, pos);
+      const after = val.substring(pos);
+      const lineStart = before.lastIndexOf('\n') + 1;
+      const afterNl = after.indexOf('\n');
+      const rest = afterNl === -1 ? '' : after.substring(afterNl);
+      textarea.value = val.substring(0, lineStart) + name + '\n' + rest;
+      const newPos = lineStart + name.length + 1;
+      textarea.selectionStart = textarea.selectionEnd = newPos;
+      textarea.focus();
+      updateCount();
+    };
+
+    const highlightMatch = (name, query) => {
+      if (!query) return name;
+      const idx = name.toLowerCase().indexOf(query.toLowerCase());
+      if (idx === -1) return name;
+      return name.substring(0, idx) + '<span class="sr-highlight">' + name.substring(idx, idx + query.length) + '</span>' + name.substring(idx + query.length);
+    };
+
+    const showSuggestions = (query) => {
+      const matches = Store.searchPlayers(query);
+      if (matches.length === 0) {
+        suggestions.classList.add('hidden');
+        return;
+      }
+      activeIndex = -1;
+      suggestions.innerHTML = matches.map((p, i) => `
+        <div class="search-result-item" data-name="${p.Nome}" data-idx="${i}">
+          <span class="sr-name">${highlightMatch(p.Nome, query)}</span>
+          <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
+        </div>
+      `).join('');
+      suggestions.classList.remove('hidden');
+
+      suggestions.querySelectorAll('.search-result-item').forEach(item => {
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          replaceCurrentLine(item.dataset.name);
+          suggestions.classList.add('hidden');
+        });
+      });
+    };
+
+    const setActive = (idx) => {
+      const items = suggestions.querySelectorAll('.search-result-item');
+      items.forEach((el, i) => el.classList.toggle('active', i === idx));
+      if (idx >= 0 && idx < items.length) {
+        items[idx].scrollIntoView({ block: 'nearest' });
+      }
+    };
+
+    textarea.addEventListener('input', () => {
+      updateCount();
+      const line = getCurrentLine();
+      if (line.length >= 1 && Store.getPlayers().length > 0) {
+        showSuggestions(line);
+      } else {
+        suggestions.classList.add('hidden');
+      }
+    });
+
+    textarea.addEventListener('keydown', (e) => {
+      if (suggestions.classList.contains('hidden')) return;
+      const items = suggestions.querySelectorAll('.search-result-item');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = Math.min(activeIndex + 1, items.length - 1);
+        setActive(activeIndex);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+        setActive(activeIndex);
+      } else if (e.key === 'Enter' && activeIndex >= 0) {
+        e.preventDefault();
+        replaceCurrentLine(items[activeIndex].dataset.name);
+        suggestions.classList.add('hidden');
+      } else if (e.key === 'Escape') {
+        suggestions.classList.add('hidden');
+      }
+    });
+
+    textarea.addEventListener('blur', () => {
+      setTimeout(() => suggestions.classList.add('hidden'), 150);
+    });
   },
 
   getWishlistFromTextarea() {

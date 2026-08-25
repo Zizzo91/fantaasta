@@ -101,40 +101,85 @@ const Auction = {
   bindSearch(inputId, resultsId, mode) {
     const input = document.getElementById(inputId);
     const results = document.getElementById(resultsId);
+    let activeIndex = -1;
 
-    input.addEventListener('input', () => {
-      const query = input.value.trim();
-      if (query.length < 2) {
-        results.classList.add('hidden');
-        return;
+    const highlightMatch = (name, query) => {
+      if (!query) return name;
+      const idx = name.toLowerCase().indexOf(query.toLowerCase());
+      if (idx === -1) return name;
+      return name.substring(0, idx) + '<span class="sr-highlight">' + name.substring(idx, idx + query.length) + '</span>' + name.substring(idx + query.length);
+    };
+
+    const setActive = (idx) => {
+      const items = results.querySelectorAll('.search-result-item[data-name]');
+      items.forEach((el, i) => el.classList.toggle('active', i === idx));
+      if (idx >= 0 && idx < items.length) {
+        items[idx].scrollIntoView({ block: 'nearest' });
       }
+    };
+
+    const showResults = (query) => {
       const matches = Store.searchPlayers(query);
       if (matches.length === 0) {
         results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">Nessun risultato</div>';
         results.classList.remove('hidden');
         return;
       }
+      activeIndex = -1;
       results.innerHTML = matches.map(p => `
         <div class="search-result-item" data-name="${p.Nome}">
-          <span class="sr-name">${p.Nome}</span>
+          <span class="sr-name">${highlightMatch(p.Nome, query)}</span>
           <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
         </div>
       `).join('');
       results.classList.remove('hidden');
 
       results.querySelectorAll('.search-result-item[data-name]').forEach(item => {
-        item.addEventListener('click', () => {
-          const name = item.dataset.name;
-          const player = Store.getPlayerByName(name);
+        item.addEventListener('mousedown', (e) => {
+          e.preventDefault();
+          const player = Store.getPlayerByName(item.dataset.name);
           if (player) this.selectPlayer(player, mode);
           results.classList.add('hidden');
           input.value = '';
         });
       });
+    };
+
+    input.addEventListener('input', () => {
+      const query = input.value.trim();
+      if (query.length < 1) {
+        results.classList.add('hidden');
+        return;
+      }
+      showResults(query);
+    });
+
+    input.addEventListener('keydown', (e) => {
+      if (results.classList.contains('hidden')) return;
+      const items = results.querySelectorAll('.search-result-item[data-name]');
+      if (!items.length) return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        activeIndex = Math.min(activeIndex + 1, items.length - 1);
+        setActive(activeIndex);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        activeIndex = Math.max(activeIndex - 1, 0);
+        setActive(activeIndex);
+      } else if (e.key === 'Enter' && activeIndex >= 0) {
+        e.preventDefault();
+        const player = Store.getPlayerByName(items[activeIndex].dataset.name);
+        if (player) this.selectPlayer(player, mode);
+        results.classList.add('hidden');
+        input.value = '';
+      } else if (e.key === 'Escape') {
+        results.classList.add('hidden');
+      }
     });
 
     input.addEventListener('blur', () => {
-      setTimeout(() => results.classList.add('hidden'), 200);
+      setTimeout(() => results.classList.add('hidden'), 150);
     });
   },
 

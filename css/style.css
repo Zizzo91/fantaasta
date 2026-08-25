@@ -736,6 +736,25 @@ textarea {
   }
 }
 
+/* Wishlist wrapper */
+.wishlist-wrapper {
+  position: relative;
+}
+
+.wishlist-wrapper .search-results {
+  width: 100%;
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 100;
+}
+
+/* Search highlight */
+.sr-highlight {
+  color: var(--primary);
+  font-weight: 600;
+}
+
 /* Responsive */
 @media (max-width: 900px) {
   .auction-layout {
