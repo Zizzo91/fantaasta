@@ -13,6 +13,7 @@ const Dashboard = {
 
     Sortable.create(grid, {
       animation: 150,
+      handle: '.dash-card-handle',
       ghostClass: 'dash-card-ghost',
       chosenClass: 'dash-card-chosen',
       dragClass: 'dash-card-drag',

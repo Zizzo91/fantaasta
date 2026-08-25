@@ -346,7 +346,21 @@ textarea {
   margin-bottom: 1rem;
   padding-bottom: 0.5rem;
   border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
 }
+
+.dash-card-handle {
+  cursor: grab;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 0.9rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.dash-card-handle:active { cursor: grabbing; }
 
 .dash-card[data-id="player-compare"] {
   grid-column: 1 / -1;
