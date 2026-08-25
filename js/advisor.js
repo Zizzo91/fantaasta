@@ -166,13 +166,23 @@ Valuta: rapporto qualità/prezzo, crediti residui avversari, slot liberi per ruo
 Per il bluff: calcola il danno economico massimo all'avversario.`,
 
   extractJson(text) {
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
     const start = cleaned.indexOf('{');
-    const end = cleaned.lastIndexOf('}');
-    if (start === -1 || end === -1 || end <= start) {
+    if (start === -1) {
       throw new Error('No JSON found in: ' + text.substring(0, 120));
     }
-    return JSON.parse(cleaned.substring(start, end + 1));
+    cleaned = cleaned.substring(start);
+    let lastClose = cleaned.lastIndexOf('}');
+    if (lastClose === -1) {
+      throw new Error('Incomplete JSON in: ' + text.substring(0, 120));
+    }
+    let candidate = cleaned.substring(0, lastClose + 1);
+    try {
+      return JSON.parse(candidate);
+    } catch (e) {
+      candidate = candidate.replace(/,\s*([\]}])/g, '$1');
+      return JSON.parse(candidate);
+    }
   },
 
   async getSuggestion(player) {
@@ -293,26 +303,33 @@ Formato JSON richiesto:
     "A": "consiglio spesa attaccanti"
   },
   "bluff_targets": [{"opponent":"...","strategy":"..."}],
-  "general_tips": ["consiglio 1","consiglio 2","consiglio 3"]
+  "general_tips": ["consiglio 1","consiglio 2"]
 }
 
 Regole:
-- Includi 3-5 target_players per ruolo che hai slot liberi, ordinati per valore FVM/QtA
-- max_price = prezzo massimo consigliato in crediti (considera media mercato e budget residuo)
-- value_picks = acquisti sottovalutati (FVM alto, QtA basso)
-- budget_strategy = come distribuire i crediti tra i ruoli (percentuali o intervalli)
-- bluff_targets = avversari con molti crediti da far spendere
-- general_tips = 3-5 consigli strategici generali
-- Considera che molti giocatori verranno comprati da altri: sii realistico sui prezzi
-- Se un giocatore nella wishlist ha QtA molto alto, valuta se è realmente raggiungibile`,
+- Includi MAX 3 target_players per ruolo che hai slot liberi, ordinati per FVM decrescente
+- max_price = prezzo massimo consigliato in crediti
+- value_picks = massimo 3 acquisti sottovalutati (FVM alto, QtA basso)
+- bluff_targets = massimo 2 avversari da far spendere
+- general_tips = massimo 3 consigli
+- Usa nomi reali dei giocatori dal dataset, NON nomi fittizi
+- Sii conciso: ragioni di max 10 parole`,
 
   async getPreAstaPlan() {
     const ctx = this.buildPreAstaContext();
     const userPrompt = `Genera un piano strategico completo pre-asta per la mia squadra.\n\nContesto lega:\n${JSON.stringify(ctx, null, 2)}\n\nRispondi SOLO con JSON valido secondo il formato richiesto.`;
-    const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
-    const result = this.extractJson(raw);
-    result.generated_at = Date.now();
-    Store.savePreAstaPlan(result);
-    return result;
+    try {
+      const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
+      const result = this.extractJson(raw);
+      result.generated_at = Date.now();
+      Store.savePreAstaPlan(result);
+      return result;
+    } catch (e1) {
+      const raw2 = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
+      const result = this.extractJson(raw2);
+      result.generated_at = Date.now();
+      Store.savePreAstaPlan(result);
+      return result;
+    }
   }
 };
