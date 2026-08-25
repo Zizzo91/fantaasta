@@ -1,5 +1,5 @@
 const Config = {
-  csvData: null,
+  pendingData: null,
 
   init() {
     this.bindRosterInputs();
@@ -30,14 +30,44 @@ const Config = {
     dropzone.addEventListener('drop', e => {
       e.preventDefault();
       dropzone.classList.remove('dragover');
-      if (e.dataTransfer.files.length) this.parseCsv(e.dataTransfer.files[0]);
+      if (e.dataTransfer.files.length) this.parseFile(e.dataTransfer.files[0]);
     });
     fileInput.addEventListener('change', () => {
-      if (fileInput.files.length) this.parseCsv(fileInput.files[0]);
+      if (fileInput.files.length) this.parseFile(fileInput.files[0]);
     });
 
-    document.getElementById('csv-confirm').addEventListener('click', () => this.confirmCsv());
+    document.getElementById('csv-confirm').addEventListener('click', () => this.confirmPending());
     document.getElementById('csv-remove').addEventListener('click', () => this.removeCsv());
+  },
+
+  parseFile(file) {
+    if (/\.(xlsx|xls)$/i.test(file.name)) {
+      this.parseXlsx(file);
+    } else {
+      this.parseCsv(file);
+    }
+  },
+
+  parseXlsx(file) {
+    if (typeof XLSX === 'undefined') {
+      alert('Libreria XLSX non caricata. Ricarica la pagina.');
+      return;
+    }
+    file.arrayBuffer().then(buf => {
+      try {
+        const wb = XLSX.read(buf, { type: 'array' });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+        if (rows.length < 2) {
+          alert('Il file XLSX sembra vuoto o non valido.');
+          return;
+        }
+        this.pendingData = rows;
+        this.showPreview(file.name, rows);
+      } catch (err) {
+        alert('Errore nel parsing del file XLSX: ' + err.message);
+      }
+    });
   },
 
   parseCsv(file) {
@@ -49,8 +79,8 @@ const Config = {
           alert('Il file CSV sembra vuoto o non valido.');
           return;
         }
-        this.csvData = results.data;
-        this.showCsvPreview(file.name, results.data);
+        this.pendingData = results.data;
+        this.showPreview(file.name, results.data);
       },
       error: (err) => {
         alert('Errore nel parsing del CSV: ' + err.message);
@@ -58,7 +88,7 @@ const Config = {
     });
   },
 
-  showCsvPreview(filename, data) {
+  showPreview(filename, data) {
     document.getElementById('csv-dropzone').classList.add('hidden');
     document.getElementById('csv-info').classList.remove('hidden');
     document.getElementById('csv-filename').textContent = 'File: ' + filename;
@@ -66,7 +96,7 @@ const Config = {
     const headerRow = data[0];
     const totalPlayers = data.length - 2;
     document.getElementById('csv-count').textContent =
-      `${totalPlayers} calciatori trovati | Colonne: ${headerRow.length} | Separatore: ;`;
+      `${totalPlayers} calciatori trovati | Colonne: ${headerRow.length}`;
 
     const preview = data.slice(0, 6);
     let html = '<table><thead><tr>';
@@ -81,27 +111,54 @@ const Config = {
     document.getElementById('csv-preview-table').innerHTML = html;
   },
 
-  confirmCsv() {
-    if (!this.csvData) return;
-    const header = this.csvData[0];
+  confirmPending() {
+    if (!this.pendingData) return;
+    const header = this.pendingData[0];
+
+    const findCol = (name) => {
+      const idx = header.findIndex(h => String(h).trim().toLowerCase() === name.toLowerCase());
+      return idx >= 0 ? idx : null;
+    };
+
+    const colR   = findCol('R');
+    const colRM  = findCol('RM');
+    const colNome = findCol('Nome');
+    const colSqd = findCol('Squadra');
+    const colQtA = findCol('Qt.A');
+    const colQtI = findCol('Qt.I');
+    const colFVM = findCol('FVM');
+
+    const fallback = { R: 1, RM: 2, Nome: 3, Squadra: 4, QtA: 5, QtI: 6, FVM: 11 };
+
+    const c = {
+      R:    colR    !== null ? colR    : fallback.R,
+      RM:   colRM   !== null ? colRM   : fallback.RM,
+      Nome: colNome !== null ? colNome : fallback.Nome,
+      Squadra: colSqd !== null ? colSqd : fallback.Squadra,
+      QtA:  colQtA  !== null ? colQtA  : fallback.QtA,
+      QtI:  colQtI  !== null ? colQtI  : fallback.QtI,
+      FVM:  colFVM  !== null ? colFVM  : fallback.FVM
+    };
+
     const players = [];
-    for (let i = 1; i < this.csvData.length; i++) {
-      const row = this.csvData[i];
-      if (row.length < 5 || !row[3]) continue;
-      const roles = row[2] ? row[2].replace(/"/g, '').split(';').map(r => r.trim()) : [];
+    for (let i = 1; i < this.pendingData.length; i++) {
+      const row = this.pendingData[i];
+      if (!row || row.length < 5 || !row[c.Nome]) continue;
+      if (String(row[c.R]).trim().toUpperCase() === 'R') continue;
+      const roles = row[c.RM] ? String(row[c.RM]).replace(/"/g, '').split(';').map(r => r.trim()) : [];
       players.push({
         Id: row[0],
-        R: row[1],
+        R: row[c.R],
         RM: roles,
-        Nome: row[3],
-        Squadra: row[4],
-        QtA: parseInt(row[5]) || 0,
-        QtI: parseInt(row[6]) || 0,
-        FVM: parseInt(row[11]) || 0
+        Nome: String(row[c.Nome]).trim(),
+        Squadra: String(row[c.Squadra]).trim(),
+        QtA: parseInt(row[c.QtA]) || 0,
+        QtI: parseInt(row[c.QtI]) || 0,
+        FVM: parseInt(row[c.FVM]) || 0
       });
     }
     Store.savePlayers(players);
-    this.csvData = null;
+    this.pendingData = null;
 
     document.getElementById('csv-info').classList.add('hidden');
     document.getElementById('csv-loaded').classList.remove('hidden');
@@ -111,7 +168,7 @@ const Config = {
 
   removeCsv() {
     Store._remove('players');
-    this.csvData = null;
+    this.pendingData = null;
     document.getElementById('csv-dropzone').classList.remove('hidden');
     document.getElementById('csv-info').classList.add('hidden');
     document.getElementById('csv-loaded').classList.add('hidden');
@@ -181,8 +238,9 @@ const Config = {
 
   bindWishlist() {
     const textarea = document.getElementById('wishlist-input');
-    const suggestions = document.getElementById('wishlist-suggestions');
+    const suggestionsEl = document.getElementById('wishlist-suggestions');
     let activeIndex = -1;
+    let matches = [];
 
     const updateCount = () => {
       const lines = textarea.value.split('\n').map(l => l.trim()).filter(l => l.length > 0);
@@ -190,102 +248,124 @@ const Config = {
     };
 
     const getCurrentLine = () => {
-      const val = textarea.value;
       const pos = textarea.selectionStart;
-      const before = val.substring(0, pos);
+      const text = textarea.value;
+      const before = text.substring(0, pos);
       const lineStart = before.lastIndexOf('\n') + 1;
-      return val.substring(lineStart, pos);
+      return { text: before.substring(lineStart), start: lineStart, end: pos };
     };
 
-    const replaceCurrentLine = (name) => {
-      const val = textarea.value;
+    const insertAtLine = (name) => {
       const pos = textarea.selectionStart;
-      const before = val.substring(0, pos);
-      const after = val.substring(pos);
+      const text = textarea.value;
+      const before = text.substring(0, pos);
+      const after = text.substring(pos);
       const lineStart = before.lastIndexOf('\n') + 1;
-      const afterNl = after.indexOf('\n');
-      const rest = afterNl === -1 ? '' : after.substring(afterNl);
-      textarea.value = val.substring(0, lineStart) + name + '\n' + rest;
-      const newPos = lineStart + name.length + 1;
-      textarea.selectionStart = textarea.selectionEnd = newPos;
+      const nlPos = after.indexOf('\n');
+      const lineEnd = nlPos >= 0 ? pos + nlPos + 1 : text.length;
+      const newBefore = text.substring(0, lineStart) + name;
+      const newAfter = text.substring(lineEnd);
+      textarea.value = newBefore + '\n' + newAfter;
+      const newPos = newBefore.length + 1;
+      textarea.selectionStart = newPos;
+      textarea.selectionEnd = newPos;
       textarea.focus();
-      updateCount();
     };
 
-    const highlightMatch = (name, query) => {
-      if (!query) return name;
-      const idx = name.toLowerCase().indexOf(query.toLowerCase());
-      if (idx === -1) return name;
-      return name.substring(0, idx) + '<span class="sr-highlight">' + name.substring(idx, idx + query.length) + '</span>' + name.substring(idx + query.length);
-    };
-
-    const showSuggestions = (query) => {
-      const matches = Store.searchPlayers(query);
-      if (matches.length === 0) {
-        suggestions.classList.add('hidden');
+    const showSuggestions = () => {
+      const line = getCurrentLine();
+      const query = line.text.trim().toLowerCase();
+      if (query.length < 1) {
+        suggestionsEl.classList.add('hidden');
         return;
       }
+
+      const players = Store.getPlayers();
+      const auctioned = Store.getAuctionedPlayerIds();
+      const existingLines = textarea.value.split('\n').map(l => l.trim().toLowerCase());
+
+      matches = players
+        .filter(p => !auctioned.has(p.Nome) && p.Nome.toLowerCase().includes(query))
+        .filter(p => !existingLines.includes(p.Nome.toLowerCase()))
+        .slice(0, 8);
+
+      if (matches.length === 0) {
+        suggestionsEl.classList.add('hidden');
+        return;
+      }
+
       activeIndex = -1;
-      suggestions.innerHTML = matches.map((p, i) => `
-        <div class="search-result-item" data-name="${p.Nome}" data-idx="${i}">
-          <span class="sr-name">${highlightMatch(p.Nome, query)}</span>
-          <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
+      suggestionsEl.innerHTML = matches.map((p, i) => `
+        <div class="ws-item" data-idx="${i}">
+          <span class="ws-name">${p.Nome}</span>
+          <span class="ws-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
         </div>
       `).join('');
-      suggestions.classList.remove('hidden');
+      suggestionsEl.classList.remove('hidden');
 
-      suggestions.querySelectorAll('.search-result-item').forEach(item => {
+      suggestionsEl.querySelectorAll('.ws-item').forEach(item => {
         item.addEventListener('mousedown', (e) => {
           e.preventDefault();
-          replaceCurrentLine(item.dataset.name);
-          suggestions.classList.add('hidden');
+          const idx = parseInt(item.dataset.idx);
+          insertAtLine(matches[idx].Nome);
+          suggestionsEl.classList.add('hidden');
+          updateCount();
         });
       });
     };
 
-    const setActive = (idx) => {
-      const items = suggestions.querySelectorAll('.search-result-item');
-      items.forEach((el, i) => el.classList.toggle('active', i === idx));
-      if (idx >= 0 && idx < items.length) {
-        items[idx].scrollIntoView({ block: 'nearest' });
+    const navigateSuggestions = (dir) => {
+      const items = suggestionsEl.querySelectorAll('.ws-item');
+      if (items.length === 0) return false;
+      items.forEach(i => i.classList.remove('active'));
+      activeIndex += dir;
+      if (activeIndex < 0) activeIndex = items.length - 1;
+      if (activeIndex >= items.length) activeIndex = 0;
+      items[activeIndex].classList.add('active');
+      return true;
+    };
+
+    const selectActive = () => {
+      if (activeIndex >= 0 && activeIndex < matches.length) {
+        insertAtLine(matches[activeIndex].Nome);
+        suggestionsEl.classList.add('hidden');
+        updateCount();
+        return true;
       }
+      return false;
     };
 
     textarea.addEventListener('input', () => {
       updateCount();
-      const line = getCurrentLine();
-      if (line.length >= 1 && Store.getPlayers().length > 0) {
-        showSuggestions(line);
-      } else {
-        suggestions.classList.add('hidden');
-      }
+      showSuggestions();
     });
 
     textarea.addEventListener('keydown', (e) => {
-      if (suggestions.classList.contains('hidden')) return;
-      const items = suggestions.querySelectorAll('.search-result-item');
-      if (!items.length) return;
-
+      if (suggestionsEl.classList.contains('hidden')) return;
       if (e.key === 'ArrowDown') {
         e.preventDefault();
-        activeIndex = Math.min(activeIndex + 1, items.length - 1);
-        setActive(activeIndex);
+        navigateSuggestions(1);
       } else if (e.key === 'ArrowUp') {
         e.preventDefault();
-        activeIndex = Math.max(activeIndex - 1, 0);
-        setActive(activeIndex);
-      } else if (e.key === 'Enter' && activeIndex >= 0) {
-        e.preventDefault();
-        replaceCurrentLine(items[activeIndex].dataset.name);
-        suggestions.classList.add('hidden');
+        navigateSuggestions(-1);
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        if (selectActive()) {
+          e.preventDefault();
+        }
       } else if (e.key === 'Escape') {
-        suggestions.classList.add('hidden');
+        suggestionsEl.classList.add('hidden');
       }
     });
 
     textarea.addEventListener('blur', () => {
-      setTimeout(() => suggestions.classList.add('hidden'), 150);
+      setTimeout(() => suggestionsEl.classList.add('hidden'), 150);
     });
+
+    textarea.addEventListener('focus', () => {
+      if (getCurrentLine().text.trim().length >= 1) showSuggestions();
+    });
+
+    updateCount();
   },
 
   getWishlistFromTextarea() {

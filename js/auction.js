@@ -101,85 +101,40 @@ const Auction = {
   bindSearch(inputId, resultsId, mode) {
     const input = document.getElementById(inputId);
     const results = document.getElementById(resultsId);
-    let activeIndex = -1;
 
-    const highlightMatch = (name, query) => {
-      if (!query) return name;
-      const idx = name.toLowerCase().indexOf(query.toLowerCase());
-      if (idx === -1) return name;
-      return name.substring(0, idx) + '<span class="sr-highlight">' + name.substring(idx, idx + query.length) + '</span>' + name.substring(idx + query.length);
-    };
-
-    const setActive = (idx) => {
-      const items = results.querySelectorAll('.search-result-item[data-name]');
-      items.forEach((el, i) => el.classList.toggle('active', i === idx));
-      if (idx >= 0 && idx < items.length) {
-        items[idx].scrollIntoView({ block: 'nearest' });
+    input.addEventListener('input', () => {
+      const query = input.value.trim();
+      if (query.length < 2) {
+        results.classList.add('hidden');
+        return;
       }
-    };
-
-    const showResults = (query) => {
       const matches = Store.searchPlayers(query);
       if (matches.length === 0) {
         results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">Nessun risultato</div>';
         results.classList.remove('hidden');
         return;
       }
-      activeIndex = -1;
       results.innerHTML = matches.map(p => `
         <div class="search-result-item" data-name="${p.Nome}">
-          <span class="sr-name">${highlightMatch(p.Nome, query)}</span>
+          <span class="sr-name">${p.Nome}</span>
           <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
         </div>
       `).join('');
       results.classList.remove('hidden');
 
       results.querySelectorAll('.search-result-item[data-name]').forEach(item => {
-        item.addEventListener('mousedown', (e) => {
-          e.preventDefault();
-          const player = Store.getPlayerByName(item.dataset.name);
+        item.addEventListener('click', () => {
+          const name = item.dataset.name;
+          const player = Store.getPlayerByName(name);
           if (player) this.selectPlayer(player, mode);
           results.classList.add('hidden');
           input.value = '';
         });
       });
-    };
-
-    input.addEventListener('input', () => {
-      const query = input.value.trim();
-      if (query.length < 1) {
-        results.classList.add('hidden');
-        return;
-      }
-      showResults(query);
-    });
-
-    input.addEventListener('keydown', (e) => {
-      if (results.classList.contains('hidden')) return;
-      const items = results.querySelectorAll('.search-result-item[data-name]');
-      if (!items.length) return;
-
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        activeIndex = Math.min(activeIndex + 1, items.length - 1);
-        setActive(activeIndex);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        activeIndex = Math.max(activeIndex - 1, 0);
-        setActive(activeIndex);
-      } else if (e.key === 'Enter' && activeIndex >= 0) {
-        e.preventDefault();
-        const player = Store.getPlayerByName(items[activeIndex].dataset.name);
-        if (player) this.selectPlayer(player, mode);
-        results.classList.add('hidden');
-        input.value = '';
-      } else if (e.key === 'Escape') {
-        results.classList.add('hidden');
-      }
     });
 
     input.addEventListener('blur', () => {
-      setTimeout(() => results.classList.add('hidden'), 150);
+      setTimeout(() => results.classList.add('hidden'), 200);
     });
   },
 
@@ -205,6 +160,7 @@ const Auction = {
       document.getElementById('finalize-section').classList.add('hidden');
       document.getElementById('context-panel').classList.remove('hidden');
       this.renderContext(player);
+      this.renderHistoricalPrice(player);
       this.requestAiBidSuggestion(player);
     }
   },
@@ -222,6 +178,7 @@ const Auction = {
       document.getElementById('finalize-section').classList.add('hidden');
       document.getElementById('context-panel').classList.add('hidden');
       document.getElementById('ai-suggestion-bid').classList.add('hidden');
+      document.getElementById('historical-price').classList.add('hidden');
     }
     this.currentPlayer = null;
   },
@@ -269,16 +226,13 @@ const Auction = {
       this.showFinalizeSale(buyer);
     });
 
-    const handleUnassigned = () => {
+    document.getElementById('btn-unassigned2').addEventListener('click', () => {
       if (!this.currentPlayer) return;
       Store.recordUnassigned(this.currentPlayer);
       this.resetAll();
       this.refresh();
       Dashboard.refresh();
-    };
-
-    document.getElementById('btn-unassigned').addEventListener('click', handleUnassigned);
-    document.getElementById('btn-unassigned2').addEventListener('click', handleUnassigned);
+    });
 
     document.getElementById('btn-confirm-sale').addEventListener('click', () => {
       if (!this.currentPlayer) return;
@@ -304,10 +258,6 @@ const Auction = {
         document.getElementById('bid-actions').classList.remove('hidden');
       }
     });
-
-    document.getElementById('btn-pass').addEventListener('click', () => {
-      this.resetSelection('bid');
-    });
   },
 
   resetAll() {
@@ -328,19 +278,23 @@ const Auction = {
     document.getElementById('final-price').value = this.currentPlayer.QtA;
   },
 
-  async requestAiBidSuggestion(player) {
+  async requestAiBidSuggestion(player, forceRefresh) {
     const box = document.getElementById('ai-suggestion-bid');
     if (!Advisor.isConfigured()) {
       box.classList.add('hidden');
       return;
     }
-    box.classList.remove('hidden');
+    if (!forceRefresh) box.classList.remove('hidden');
     box.innerHTML = '<div class="ai-label">AI sta analizzando...</div><div class="ai-reason">Richiesta in corso...</div>';
 
     try {
+      if (forceRefresh) Store.cacheClear('bid', player.Nome);
       const suggestion = await Advisor.getSuggestion(player);
+      const cacheTag = suggestion.cached ? '<span class="ai-cache-tag">cache</span>' : '<span class="ai-cache-tag fresh">fresco</span>';
       box.innerHTML = `
-        <div class="ai-label">AI Suggerimento</div>
+        <div class="ai-label">AI Suggerimento ${cacheTag}
+          <button class="ai-refresh-btn" onclick="Auction.requestAiBidSuggestion(Auction.currentPlayer, true)">Aggiorna</button>
+        </div>
         <div class="ai-action ${suggestion.action}">${suggestion.action === 'bid' ? 'RILANCIA' : 'MOLLA'}</div>
         ${suggestion.max_price ? `<div class="ai-max">Prezzo massimo: <strong>${suggestion.max_price}cr</strong></div>` : ''}
         <div class="ai-reason">${suggestion.reason}</div>
@@ -350,7 +304,7 @@ const Auction = {
     }
   },
 
-  async requestAiCallSuggestion(callRole) {
+  async requestAiCallSuggestion(callRole, forceRefresh) {
     const box = document.getElementById('ai-suggestion-call');
     if (!Advisor.isConfigured()) {
       box.classList.add('hidden');
@@ -362,8 +316,12 @@ const Auction = {
     box.innerHTML = `<div class="ai-label">AI sta analizzando...</div><div class="ai-reason">Sto valutando ${roleLabel ? 'migliori ' + roleLabel.toLowerCase() + '...' : 'le migliori opzioni...'}</div>`;
 
     try {
+      if (forceRefresh) Store.cacheClear('call', callRole || 'all');
       const suggestion = await Advisor.getCallSuggestion(callRole);
-      let html = `<div class="ai-label">AI Suggerimento Chiamata${roleLabel ? ' — ' + roleLabel : ''}</div>`;
+      const cacheTag = suggestion.cached ? '<span class="ai-cache-tag">cache</span>' : '<span class="ai-cache-tag fresh">fresco</span>';
+      let html = `<div class="ai-label">AI Suggerimento Chiamata${roleLabel ? ' — ' + roleLabel : ''} ${cacheTag}
+        <button class="ai-refresh-btn" onclick="Auction.requestAiCallSuggestion('${callRole || ''}', true)">Aggiorna</button>
+      </div>`;
 
       if (suggestion.recommended_call) {
         html += `
@@ -392,6 +350,36 @@ const Auction = {
     }
   },
 
+  renderHistoricalPrice(player) {
+    const box = document.getElementById('historical-price');
+    const log = Store.getAuctionLog();
+    const roleLabels = { P: 'Portieri', D: 'Difensori', C: 'Centrocampisti', A: 'Attaccanti' };
+
+    const sameRoleSales = log.filter(e => e.role === player.R && e.price > 0);
+    const samePlayerSales = log.filter(e => e.player === player.Nome && e.price > 0);
+
+    let html = '<div class="hist-inner"><span class="hist-label">Dati Storici</span>';
+
+    if (sameRoleSales.length > 0) {
+      const prices = sameRoleSales.map(e => e.price);
+      const avg = (prices.reduce((a, b) => a + b, 0) / prices.length).toFixed(1);
+      const min = Math.min(...prices);
+      const max = Math.max(...prices);
+      html += `<div class="hist-row">${roleLabels[player.R] || player.R}: media <strong>${avg}cr</strong> (min ${min} — max ${max}) su ${sameRoleSales.length} vendite</div>`;
+    } else {
+      html += `<div class="hist-row">Nessun dato storico per ${roleLabels[player.R] || player.R} ancora.</div>`;
+    }
+
+    if (samePlayerSales.length > 0) {
+      const p = samePlayerSales[0];
+      html += `<div class="hist-row hist-highlight">Questo giocatore venduto in passato a <strong>${p.price}cr</strong> (${p.buyer})</div>`;
+    }
+
+    html += '</div>';
+    box.innerHTML = html;
+    box.classList.remove('hidden');
+  },
+
   renderLog() {
     const log = Store.getAuctionLog();
     const container = document.getElementById('auction-log');
@@ -411,7 +399,27 @@ const Auction = {
             ? `<span class="log-price">${e.price}cr</span> <span class="log-buyer">${e.buyer}</span>`
             : '<span class="log-unassigned">Svincolato</span>'}
         </span>
+        <button class="log-remove" data-player="${e.player}" data-owner="${e.buyer || ''}" data-price="${e.price}" title="Rimuovi">&times;</button>
       </div>
     `).join('');
+
+    container.querySelectorAll('.log-remove').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const playerName = btn.dataset.player;
+        const ownerName = btn.dataset.owner;
+        const price = btn.dataset.price;
+        const msg = ownerName
+          ? `Rimuovere ${playerName} da ${ownerName}?\nRimborso: ${price}cr`
+          : `Rimuovere l'entry svincolata di ${playerName}?`;
+        if (!confirm(msg)) return;
+        const result = Store.removePlayerFromRoster(playerName, ownerName);
+        if (result.success) {
+          this.refresh();
+          Dashboard.refresh();
+        } else {
+          alert('Errore: ' + result.error);
+        }
+      });
+    });
   }
 };

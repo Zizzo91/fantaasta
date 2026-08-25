@@ -176,25 +176,35 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
   },
 
   async getSuggestion(player) {
+    const cached = Store.cacheGet('bid', player.Nome);
+    if (cached) return { ...cached, cached: true };
+
     const ctx = this.buildBidContext(player);
     const userPrompt = `Contesto asta:\n${JSON.stringify(ctx, null, 2)}\n\nSuggerisci: rilancio o passaggio? Rispondi SOLO con JSON valido.`;
     const raw = await this.callGemini(this.SYSTEM_PROMPT, userPrompt);
     try {
-      return this.extractJson(raw);
+      const result = this.extractJson(raw);
+      Store.cacheSet('bid', player.Nome, result, 0);
+      return { ...result, cached: false };
     } catch (e) {
-      return { action: 'pass', reason: 'Risposta AI non valida: ' + raw.substring(0, 120) };
+      return { action: 'pass', reason: 'Risposta AI non valida: ' + raw.substring(0, 120), cached: false };
     }
   },
 
   async getCallSuggestion(callRole) {
+    const cached = Store.cacheGet('call', callRole || 'all');
+    if (cached) return { ...cached, cached: true };
+
     const ctx = this.buildCallContext(callRole);
     const roleLabel = callRole ? `un ${callRole}` : 'un calciatore';
     const userPrompt = `Contesto asta:\n${JSON.stringify(ctx, null, 2)}\n\nQuale ${roleLabel} chiamare? Rispondi SOLO con JSON valido.`;
     const raw = await this.callGemini(this.SYSTEM_PROMPT, userPrompt);
     try {
-      return this.extractJson(raw);
+      const result = this.extractJson(raw);
+      Store.cacheSet('call', callRole || 'all', result, 120000);
+      return { ...result, cached: false };
     } catch (e) {
-      return { recommended_call: { name: 'N/A', reason: 'Risposta AI non valida: ' + raw.substring(0, 120) } };
+      return { recommended_call: { name: 'N/A', reason: 'Risposta AI non valida: ' + raw.substring(0, 120) }, cached: false };
     }
   }
 };

@@ -28,6 +28,15 @@ const Store = {
   saveWishlist(wishlist) { this._set('wishlist', wishlist); },
   getWishlist() { return this._get('wishlist') || []; },
 
+  saveDashboardOrder(order) { this._set('dashboard_order', order); },
+  getDashboardOrder() { return this._get('dashboard_order'); },
+
+  saveSpendingExpanded(val) { this._set('spending_expanded', val); },
+  getSpendingExpanded() { return this._get('spending_expanded') || false; },
+
+  saveRosterExpanded(val) { this._set('roster_expanded', val); },
+  getRosterExpanded() { return this._get('roster_expanded') || false; },
+
   saveTeams(teams) { this._set('teams', teams); },
   getTeams() { return this._get('teams') || {}; },
 
@@ -36,6 +45,39 @@ const Store = {
 
   saveApiKey(key) { this._set('api_key', key); },
   getApiKey() { return this._get('api_key') || ''; },
+
+  getAiCache() { return this._get('ai_cache') || {}; },
+  saveAiCache(cache) { this._set('ai_cache', cache); },
+
+  cacheGet(type, key) {
+    const cache = this.getAiCache();
+    const entry = cache[type + ':' + key];
+    if (!entry) return null;
+    if (entry.ttl && Date.now() - entry.ts > entry.ttl) {
+      delete cache[type + ':' + key];
+      this.saveAiCache(cache);
+      return null;
+    }
+    return entry.data;
+  },
+
+  cacheSet(type, key, data, ttl) {
+    const cache = this.getAiCache();
+    cache[type + ':' + key] = { data, ts: Date.now(), ttl: ttl || 0 };
+    this.saveAiCache(cache);
+  },
+
+  cacheClear(type, key) {
+    const cache = this.getAiCache();
+    if (key) {
+      delete cache[type + ':' + key];
+    } else {
+      Object.keys(cache).forEach(k => {
+        if (k.startsWith(type + ':')) delete cache[k];
+      });
+    }
+    this.saveAiCache(cache);
+  },
 
   initTeamsFromParticipants(participants, config) {
     const teams = {};
@@ -77,6 +119,7 @@ const Store = {
       timestamp: Date.now()
     });
     this.saveAuctionLog(log);
+    this.cacheClear('bid', player.Nome || player.name);
     return { teams, log };
   },
 
@@ -92,7 +135,56 @@ const Store = {
       timestamp: Date.now()
     });
     this.saveAuctionLog(log);
+    this.cacheClear('bid', player.Nome || player.name);
     return log;
+  },
+
+  removePlayerFromRoster(playerName, ownerName) {
+    const teams = this.getTeams();
+    const team = teams[ownerName];
+    if (!team) return { success: false, error: 'Squadra non trovata' };
+
+    let removedRole = null;
+    let refunded = 0;
+    for (const r of ['P', 'D', 'C', 'A']) {
+      if (!team.roster[r]) continue;
+      const idx = team.roster[r].findLastIndex(p => p.name === playerName);
+      if (idx >= 0) {
+        const entry = team.roster[r].splice(idx, 1)[0];
+        refunded = entry.price;
+        removedRole = r;
+        break;
+      }
+    }
+    if (!removedRole) return { success: false, error: 'Giocatore non trovato nella rosa' };
+
+    team.credits += refunded;
+    this.saveTeams(teams);
+
+    const log = this.getAuctionLog();
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i];
+      if (e.player === playerName && e.buyer === ownerName) {
+        log.splice(i, 1);
+        break;
+      }
+    }
+    for (let i = log.length - 1; i >= 0; i--) {
+      const e = log[i];
+      if (e.player === playerName && e.buyer === null) {
+        log.splice(i, 1);
+        break;
+      }
+    }
+    for (let i = 0; i < log.length; i++) {
+      log[i].num = i + 1;
+    }
+    this.saveAuctionLog(log);
+
+    this.cacheClear('bid', playerName);
+    if (removedRole) this.cacheClear('call', removedRole);
+
+    return { success: true, refunded, role: removedRole };
   },
 
   getAuctionedPlayerIds() {
@@ -147,7 +239,7 @@ const Store = {
 
   exportAll() {
     const data = {};
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded'];
     keys.forEach(k => { data[k] = this._get(k); });
     return JSON.stringify(data, null, 2);
   },
@@ -165,7 +257,7 @@ const Store = {
   },
 
   clearAll() {
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded'];
     keys.forEach(k => this._remove(k));
   },
 

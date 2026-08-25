@@ -13,6 +13,8 @@
   <title>FantaAsta AI</title>
   <link rel="stylesheet" href="css/style.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js"></script>
 </head>
 <body>
   <header>
@@ -75,10 +77,10 @@
       </div>
 
       <div class="config-section">
-        <h3>Upload CSV Quotazioni</h3>
+        <h3>Upload Quotazioni (CSV / XLSX)</h3>
         <div id="csv-dropzone" class="dropzone">
-          <p>Trascina qui il file CSV oppure <label for="csv-file" class="link-label">sfoglia</label></p>
-          <input type="file" id="csv-file" accept=".csv" hidden>
+          <p>Trascina qui il file CSV o XLSX oppure <label for="csv-file" class="link-label">sfoglia</label></p>
+          <input type="file" id="csv-file" accept=".csv,.xlsx,.xls" hidden>
         </div>
         <div id="csv-info" class="hidden">
           <p id="csv-filename"></p>
@@ -118,7 +120,7 @@
         <p class="hint">Inserisci i calciatori che desideri, in ordine di priorit (1 = prima scelta). Un calciatore per riga.</p>
         <div class="wishlist-wrapper">
           <textarea id="wishlist-input" rows="10" placeholder="Bastoni&#10;Tomori&#10;Barella&#10;Pulisic&#10;..."></textarea>
-          <div id="wishlist-suggestions" class="search-results hidden"></div>
+          <div id="wishlist-suggestions" class="wishlist-suggestions hidden"></div>
         </div>
         <p class="hint" id="wishlist-count">0 calciatori in wishlist</p>
       </div>
@@ -135,23 +137,37 @@
       </div>
       <div id="dashboard-content" class="hidden">
         <div class="dashboard-grid">
-          <div class="dash-card">
-            <h3>Le Mie Rose</h3>
+          <div class="dash-card" data-id="my-roster">
+            <h3>Le Mie Rose <button id="btn-roster-expand" class="card-expand-btn" title="Espandi / Comprimi">⤢</button></h3>
             <div id="my-roster"></div>
+            <button id="btn-share" class="btn btn-secondary btn-small" style="margin-top:0.75rem">Condividi Rosa</button>
           </div>
-          <div class="dash-card">
+          <div class="dash-card" data-id="credits-ranking">
             <h3>Classifica Crediti Residui</h3>
             <div id="credits-ranking"></div>
           </div>
-          <div class="dash-card">
+          <div class="dash-card" data-id="spending-ranking">
+            <h3>Spending Ranking <button id="btn-spending-expand" class="card-expand-btn" title="Espandi / Comprimi">⤢</button></h3>
+            <div id="spending-ranking"></div>
+          </div>
+          <div class="dash-card" data-id="market-remaining">
             <h3>Mercato Residuo</h3>
             <div id="market-remaining"></div>
           </div>
-          <div class="dash-card">
+          <div class="dash-card" data-id="wishlist-status">
             <h3>Wishlist</h3>
             <div id="wishlist-status"></div>
           </div>
+          <div class="dash-card" data-id="budget-simulator">
+            <h3>Simulatore Budget</h3>
+            <div id="budget-simulator"></div>
+          </div>
+          <div class="dash-card" data-id="player-compare">
+            <h3>Confronto Giocatori</h3>
+            <div id="player-compare"></div>
+          </div>
         </div>
+        <canvas id="share-canvas" style="display:none"></canvas>
       </div>
     </section>
 
@@ -209,11 +225,9 @@
                 <div id="context-info"></div>
               </div>
               <div id="ai-suggestion-bid" class="ai-box hidden"></div>
+              <div id="historical-price" class="hist-price-box hidden"></div>
               <div class="bid-actions hidden" id="bid-actions">
-                <button id="btn-bid" class="btn btn-primary">Rilancia</button>
-                <button id="btn-pass" class="btn btn-secondary">Molla</button>
                 <button id="btn-finalize" class="btn btn-success">Conferma Acquisto</button>
-                <button id="btn-unassigned" class="btn btn-warning">Svincolato</button>
               </div>
             </div>
 

@@ -4,6 +4,9 @@ const App = {
     Config.init();
     Auction.init();
     Dashboard.init();
+    Dashboard.initDashboardDrag();
+    Dashboard.initSpendingExpand();
+    Dashboard.initRosterExpand();
     this.bindSettings();
     this.refreshAll();
   },

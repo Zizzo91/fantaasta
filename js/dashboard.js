@@ -1,5 +1,85 @@
 const Dashboard = {
-  init() {},
+  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'player-compare'],
+
+  init() {
+    document.getElementById('btn-share').addEventListener('click', () => this.generateShareImage());
+  },
+
+  initDashboardDrag() {
+    const grid = document.querySelector('.dashboard-grid');
+    if (!grid || typeof Sortable === 'undefined') return;
+
+    this.applyCardOrder();
+
+    Sortable.create(grid, {
+      animation: 150,
+      ghostClass: 'dash-card-ghost',
+      chosenClass: 'dash-card-chosen',
+      dragClass: 'dash-card-drag',
+      filter: '[data-id="player-compare"]',
+      onEnd: () => {
+        const all = Array.from(grid.querySelectorAll('.dash-card')).map(c => c.dataset.id);
+        const order = all.filter(id => id !== 'player-compare');
+        if (!order.includes('player-compare')) order.push('player-compare');
+        Store.saveDashboardOrder(order);
+      }
+    });
+  },
+
+  applyCardOrder() {
+    const grid = document.querySelector('.dashboard-grid');
+    if (!grid) return;
+    const savedOrder = Store.getDashboardOrder() || this.DEFAULT_ORDER;
+    const cards = Array.from(grid.querySelectorAll('.dash-card'));
+
+    savedOrder.forEach(id => {
+      const card = cards.find(c => c.dataset.id === id);
+      if (card) grid.appendChild(card);
+    });
+
+    const compareCard = grid.querySelector('[data-id="player-compare"]');
+    if (compareCard) grid.appendChild(compareCard);
+  },
+
+  initSpendingExpand() {
+    const btn = document.getElementById('btn-spending-expand');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const expanded = !Store.getSpendingExpanded();
+      Store.saveSpendingExpanded(expanded);
+      this.refresh();
+    });
+  },
+
+  applySpendingExpand() {
+    const card = document.querySelector('.dash-card[data-id="spending-ranking"]');
+    if (!card) return;
+    const expanded = Store.getSpendingExpanded();
+    card.classList.toggle('expanded', expanded);
+    const btn = document.getElementById('btn-spending-expand');
+    if (btn) btn.textContent = expanded ? '⤡' : '⤢';
+    btn.title = expanded ? 'Comprimi' : 'Espandi';
+  },
+
+  initRosterExpand() {
+    const btn = document.getElementById('btn-roster-expand');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      const expanded = !Store.getRosterExpanded();
+      Store.saveRosterExpanded(expanded);
+      this.refresh();
+    });
+  },
+
+  applyRosterExpand() {
+    const card = document.querySelector('.dash-card[data-id="my-roster"]');
+    if (!card) return;
+    const expanded = Store.getRosterExpanded();
+    card.classList.toggle('expanded', expanded);
+    const btn = document.getElementById('btn-roster-expand');
+    if (btn) btn.textContent = expanded ? '⤡' : '⤢';
+    btn.title = expanded ? 'Comprimi' : 'Espandi';
+  },
 
   refresh() {
     const config = Store.getConfig();
@@ -12,9 +92,15 @@ const Dashboard = {
     if (hasConfig) {
       this.renderMyRoster();
       this.renderCreditsRanking();
+      this.renderSpendingRanking();
       this.renderMarketRemaining();
       this.renderWishlistStatus();
+      this.renderBudgetSimulator();
+      this.renderPlayerCompare();
     }
+
+    this.applySpendingExpand();
+    this.applyRosterExpand();
   },
 
   renderMyRoster() {
@@ -53,19 +139,37 @@ const Dashboard = {
       if (team.roster) {
         ['P', 'D', 'C', 'A'].forEach(r => {
           if (team.roster[r] && team.roster[r].length > 0) {
-            html += `<div style="font-size:0.78rem;color:var(--text-muted);margin-left:1.5rem;margin-top:0.2rem">`;
-            html += team.roster[r].map(p => `${p.name} (${p.price}cr)`).join(', ');
+            html += `<div class="roster-players">`;
+            html += team.roster[r].map(p =>
+              `<span class="roster-player">${p.name} <span class="roster-price">(${p.price}cr)</span><button class="roster-remove" data-player="${p.name}" data-owner="${name}" data-role="${r}" data-price="${p.price}" title="Rimuovi">&times;</button></span>`
+            ).join(', ');
             html += `</div>`;
           }
         });
       }
     });
     container.innerHTML = html;
+
+    container.querySelectorAll('.roster-remove').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const playerName = btn.dataset.player;
+        const ownerName = btn.dataset.owner;
+        const price = btn.dataset.price;
+        if (!confirm(`Rimuovere ${playerName} dalla rosa di ${ownerName}?\nRimborso: ${price}cr`)) return;
+        const result = Store.removePlayerFromRoster(playerName, ownerName);
+        if (result.success) {
+          this.refresh();
+          Auction.refresh();
+        } else {
+          alert('Errore: ' + result.error);
+        }
+      });
+    });
   },
 
   renderCreditsRanking() {
     const teams = Store.getTeams();
-    const participants = Store.getParticipants();
     const container = document.getElementById('credits-ranking');
     const config = Store.getConfig();
     const maxCredits = config ? parseInt(config.credits) || 250 : 250;
@@ -88,6 +192,151 @@ const Dashboard = {
     }).join('');
   },
 
+  renderSpendingRanking() {
+    const teams = Store.getTeams();
+    const players = Store.getPlayers();
+    const container = document.getElementById('spending-ranking');
+
+    const rankings = Object.entries(teams).map(([name, team]) => {
+      let totalSpent = 0;
+      let playerCount = 0;
+      let totalFvm = 0;
+      ['P', 'D', 'C', 'A'].forEach(r => {
+        if (team.roster[r]) {
+          team.roster[r].forEach(p => {
+            totalSpent += p.price;
+            playerCount++;
+            const csvPlayer = players.find(pl => pl.Nome === p.name);
+            if (csvPlayer) totalFvm += csvPlayer.FVM || 0;
+          });
+        }
+      });
+      const avgPrice = playerCount > 0 ? (totalSpent / playerCount).toFixed(1) : 0;
+      const avgFvm = playerCount > 0 ? (totalFvm / playerCount).toFixed(1) : 0;
+      const valueRatio = totalSpent > 0 ? (totalFvm / totalSpent).toFixed(2) : '0.00';
+      return { name, totalSpent, playerCount, avgPrice, avgFvm, valueRatio };
+    }).sort((a, b) => b.totalSpent - a.totalSpent);
+
+    if (rankings.every(r => r.playerCount === 0)) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Nessun acquisto ancora.</p>';
+      return;
+    }
+
+    const maxSpent = Math.max(...rankings.map(r => r.totalSpent), 1);
+
+    container.innerHTML = `
+      <div class="spending-table-wrap">
+        <table class="spending-table">
+          <thead>
+            <tr>
+              <th></th>
+              <th title="Nome partecipante">N</th>
+              <th title="Giocatori acquistati">Gioc.</th>
+              <th title="Crediti totali spesi">Spesi</th>
+              <th title="Prezzo medio per giocatore">Media</th>
+              <th class="th-info" data-metric="fvm" title="Clicca per sapere cos'è">FVM ⓘ</th>
+              <th class="th-info" data-metric="qp" title="Clicca per sapere cos'è">Q/P ⓘ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rankings.map((r, i) => {
+              const pct = maxSpent > 0 ? (r.totalSpent / maxSpent) * 100 : 0;
+              return `<tr>
+                <td class="spend-rank">${i + 1}</td>
+                <td class="spend-name">${r.name}</td>
+                <td>${r.playerCount}</td>
+                <td>
+                  <div class="spend-bar-wrap">
+                    <div class="spend-bar" style="width:${pct}%"></div>
+                    <span>${r.totalSpent}cr</span>
+                  </div>
+                </td>
+                <td>${r.avgPrice}cr</td>
+                <td>${r.avgFvm}</td>
+                <td class="${parseFloat(r.valueRatio) >= 1 ? 'value-good' : 'value-bad'}">${r.valueRatio}</td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    `;
+
+    container.querySelectorAll('.th-info').forEach(th => {
+      th.addEventListener('click', (e) => {
+        e.stopPropagation();
+        this.showMetricOverlay(th.dataset.metric, th);
+      });
+    });
+  },
+
+  showMetricOverlay(metric, thEl) {
+    this.hideMetricOverlay();
+
+    const overlay = document.createElement('div');
+    overlay.id = 'metric-overlay';
+    overlay.className = 'metric-overlay';
+
+    const content = {
+      fvm: {
+        title: 'FVM — Fantacalcio Valore Medio',
+        desc: 'Indica la qualità media dei giocatori nella tua rosa, calcolata dal valore FVM presente nel CSV delle quotazioni. Più è alto, più la tua rosa è forte sulla carta.',
+        formula: 'FVM medio = somma FVM di tutti i giocatori ÷ numero di giocatori',
+        example: 'Esempio: 3 acquisti con FVM 40, 35 e 30 → media = 35'
+      },
+      qp: {
+        title: 'Q/P — Qualità / Prezzo',
+        desc: 'Misura l\'efficienza della spesa: quanta qualità hai ottenuto per ogni credito speso. Più è alto, più il tuo acquisto è un affare.',
+        formula: 'Q/P = FVM totale della rosa ÷ crediti totali spesi',
+        example: 'Esempio: FVM totale 70, spesi 50cr → 70/50 = 1,40 (verde = conviene). Sotto 1,00 = rosso (hai pagato caro).'
+      }
+    };
+
+    const c = content[metric];
+    overlay.innerHTML = `
+      <div class="overlay-header">
+        <strong>${c.title}</strong>
+        <button class="overlay-close" title="Chiudi">&times;</button>
+      </div>
+      <p>${c.desc}</p>
+      <div class="overlay-formula">${c.formula}</div>
+      <p class="overlay-example">${c.example}</p>
+    `;
+
+    document.body.appendChild(overlay);
+
+    const rect = thEl.getBoundingClientRect();
+    overlay.style.position = 'fixed';
+    overlay.style.top = (rect.bottom + 6) + 'px';
+    const overlayWidth = 340;
+    let left = rect.left + rect.width / 2 - overlayWidth / 2;
+    left = Math.max(8, Math.min(left, window.innerWidth - overlayWidth - 8));
+    overlay.style.left = left + 'px';
+    overlay.style.width = overlayWidth + 'px';
+
+    overlay.querySelector('.overlay-close').addEventListener('click', () => this.hideMetricOverlay());
+
+    const onOutside = (e) => {
+      if (!overlay.contains(e.target) && !thEl.contains(e.target)) {
+        this.hideMetricOverlay();
+        document.removeEventListener('click', onOutside);
+      }
+    };
+    setTimeout(() => document.addEventListener('click', onOutside), 0);
+
+    const onEsc = (e) => {
+      if (e.key === 'Escape') {
+        this.hideMetricOverlay();
+        document.removeEventListener('keydown', onEsc);
+      }
+    };
+    document.addEventListener('keydown', onEsc);
+  },
+
+  hideMetricOverlay() {
+    const existing = document.getElementById('metric-overlay');
+    if (existing) existing.remove();
+  },
+
   renderMarketRemaining() {
     const count = Store.getMarketRemaining();
     const container = document.getElementById('market-remaining');
@@ -99,7 +348,8 @@ const Dashboard = {
         <div class="bar-track">
           <div class="bar-fill" style="width:100%"></div>
         </div>
-        <span class="bar-text">${count[r]} ${labels[r]}</span>
+        <span class="bar-text">${count[r]}</span>
+        <span class="bar-label">${labels[r]}</span>
       </div>
     `).join('');
   },
@@ -143,5 +393,295 @@ const Dashboard = {
         </div>
       `;
     }).join('');
+  },
+
+  renderBudgetSimulator() {
+    const container = document.getElementById('budget-simulator');
+    const config = Store.getConfig();
+    const participants = Store.getParticipants();
+    const teams = Store.getTeams();
+    const roles = Store.getConfiguredRoles();
+
+    if (!config || participants.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Configura la lega prima.</p>';
+      return;
+    }
+
+    container.innerHTML = `
+      <div class="sim-controls">
+        <div class="form-group">
+          <label for="sim-team">Partecipante</label>
+          <select id="sim-team">
+            ${participants.map(p => `<option value="${p.name}">${p.name}</option>`).join('')}
+          </select>
+        </div>
+        <div class="form-group" style="position:relative">
+          <label for="sim-player-search">Calciatore</label>
+          <input type="text" id="sim-player-search" placeholder="Cerca..." autocomplete="off">
+          <div id="sim-player-results" class="search-results hidden"></div>
+        </div>
+        <div class="form-group">
+          <label for="sim-price">Prezzo</label>
+          <input type="number" id="sim-price" min="1" value="10">
+        </div>
+      </div>
+      <div id="sim-result" class="sim-result hidden"></div>
+    `;
+
+    const searchInput = document.getElementById('sim-player-search');
+    const resultsDiv = document.getElementById('sim-player-results');
+    const priceInput = document.getElementById('sim-price');
+    const resultDiv = document.getElementById('sim-result');
+    let selectedPlayer = null;
+
+    const updateResult = () => {
+      const teamName = document.getElementById('sim-team').value;
+      const price = parseInt(priceInput.value) || 0;
+      const team = teams[teamName];
+      if (!team || !selectedPlayer || price < 1) {
+        resultDiv.classList.add('hidden');
+        return;
+      }
+
+      const remainingCredits = team.credits - price;
+      const mainRole = selectedPlayer.R;
+      const currentBought = team.roster[mainRole] ? team.roster[mainRole].length : 0;
+      const totalSlots = roles[mainRole] || 0;
+      const remainingSlots = totalSlots - currentBought - 1;
+
+      let html = '<div class="sim-result-inner">';
+      html += `<div class="sim-row ${remainingCredits < 0 ? 'sim-danger' : ''}">Crediti rimanenti: <strong>${remainingCredits}cr</strong></div>`;
+      html += `<div class="sim-row">Slot ${mainRole} rimanenti: <strong>${remainingSlots}</strong></div>`;
+      html += '<div class="sim-rosa">';
+      ['P', 'D', 'C', 'A'].forEach(r => {
+        const bought = team.roster[r] ? team.roster[r].length : 0;
+        const total = roles[r] || 0;
+        const extra = r === mainRole ? 1 : 0;
+        html += `<div class="sim-role">
+          <span class="sim-role-label">${r}</span>
+          <span class="sim-role-count ${bought + extra > total ? 'over' : ''}">${bought + extra}/${total}</span>
+        </div>`;
+      });
+      html += '</div></div>';
+      resultDiv.innerHTML = html;
+      resultDiv.classList.remove('hidden');
+    };
+
+    searchInput.addEventListener('input', () => {
+      const query = searchInput.value.trim();
+      if (query.length < 2) {
+        resultsDiv.classList.add('hidden');
+        return;
+      }
+      const matches = Store.searchPlayers(query);
+      if (matches.length === 0) {
+        resultsDiv.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">Nessun risultato</div>';
+        resultsDiv.classList.remove('hidden');
+        return;
+      }
+      resultsDiv.innerHTML = matches.map(p => `
+        <div class="search-result-item" data-name="${p.Nome}">
+          <span class="sr-name">${p.Nome}</span>
+          <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
+        </div>
+      `).join('');
+      resultsDiv.classList.remove('hidden');
+
+      resultsDiv.querySelectorAll('.search-result-item[data-name]').forEach(item => {
+        item.addEventListener('click', () => {
+          const name = item.dataset.name;
+          selectedPlayer = Store.getPlayerByName(name);
+          if (selectedPlayer) {
+            searchInput.value = selectedPlayer.Nome;
+            priceInput.value = selectedPlayer.QtA;
+            updateResult();
+          }
+          resultsDiv.classList.add('hidden');
+        });
+      });
+    });
+
+    searchInput.addEventListener('blur', () => {
+      setTimeout(() => resultsDiv.classList.add('hidden'), 200);
+    });
+
+    priceInput.addEventListener('input', updateResult);
+    document.getElementById('sim-team').addEventListener('change', updateResult);
+  },
+
+  renderPlayerCompare() {
+    const container = document.getElementById('player-compare');
+    const players = Store.getPlayers();
+    const auctioned = Store.getAuctionedPlayerIds();
+    const log = Store.getAuctionLog();
+
+    container.innerHTML = `
+      <div class="compare-controls">
+        <div class="form-group" style="position:relative">
+          <label>Giocatore 1</label>
+          <input type="text" id="cmp-search-1" placeholder="Cerca..." autocomplete="off">
+          <div id="cmp-results-1" class="search-results hidden"></div>
+        </div>
+        <div class="form-group" style="position:relative">
+          <label>Giocatore 2</label>
+          <input type="text" id="cmp-search-2" placeholder="Cerca..." autocomplete="off">
+          <div id="cmp-results-2" class="search-results hidden"></div>
+        </div>
+      </div>
+      <div id="compare-table" class="hidden"></div>
+    `;
+
+    let player1 = null;
+    let player2 = null;
+
+    const getPlayerStatus = (name) => {
+      if (!auctioned.has(name)) return { label: 'Disponibile', cls: 'available' };
+      const entry = log.find(e => e.player === name);
+      if (entry && entry.buyer) return { label: `Venduto a ${entry.buyer} (${entry.price}cr)`, cls: 'bought' };
+      return { label: 'Svincolato', cls: 'missed' };
+    };
+
+    const getAvgPrice = (role) => {
+      const sales = log.filter(e => e.role === role && e.price > 0);
+      if (sales.length === 0) return null;
+      return (sales.reduce((s, e) => s + e.price, 0) / sales.length).toFixed(1);
+    };
+
+    const renderTable = () => {
+      if (!player1 || !player2) return;
+      const s1 = getPlayerStatus(player1.Nome);
+      const s2 = getPlayerStatus(player2.Nome);
+      const avg1 = getAvgPrice(player1.R);
+      const avg2 = getAvgPrice(player2.R);
+
+      document.getElementById('compare-table').innerHTML = `
+        <table class="compare-tbl">
+          <thead>
+            <tr>
+              <th></th>
+              <th>${player1.Nome}</th>
+              <th>${player2.Nome}</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr><td>Ruolo</td><td>${player1.R}</td><td>${player2.R}</td></tr>
+            <tr><td>Squadra</td><td>${player1.Squadra}</td><td>${player2.Squadra}</td></tr>
+            <tr><td>Qt.A</td><td class="${player1.QtA < player2.QtA ? 'better' : player1.QtA > player2.QtA ? 'worse' : ''}">${player1.QtA}cr</td><td class="${player2.QtA < player1.QtA ? 'better' : player2.QtA > player1.QtA ? 'worse' : ''}">${player2.QtA}cr</td></tr>
+            <tr><td>FVM</td><td class="${player1.FVM > player2.FVM ? 'better' : player1.FVM < player2.FVM ? 'worse' : ''}">${player1.FVM}</td><td class="${player2.FVM > player1.FVM ? 'better' : player2.FVM < player1.FVM ? 'worse' : ''}">${player2.FVM}</td></tr>
+            <tr><td>Prezzo medio (${player1.R})</td><td>${avg1 ? avg1 + 'cr' : 'N/D'}</td><td>${avg2 ? avg2 + 'cr' : 'N/D'}</td></tr>
+            <tr><td>Qualità/Prezzo</td><td>${avg1 ? (player1.FVM / avg1).toFixed(2) : 'N/D'}</td><td>${avg2 ? (player2.FVM / avg2).toFixed(2) : 'N/D'}</td></tr>
+            <tr><td>Status</td><td><span class="w-status ${s1.cls}">${s1.label}</span></td><td><span class="w-status ${s2.cls}">${s2.label}</span></td></tr>
+          </tbody>
+        </table>
+      `;
+      document.getElementById('compare-table').classList.remove('hidden');
+    };
+
+    const bindSearch = (inputId, resultsId, setter) => {
+      const input = document.getElementById(inputId);
+      const results = document.getElementById(resultsId);
+      input.addEventListener('input', () => {
+        const query = input.value.trim();
+        if (query.length < 2) { results.classList.add('hidden'); return; }
+        const matches = Store.searchPlayers(query);
+        if (matches.length === 0) {
+          results.innerHTML = '<div class="search-result-item" style="color:var(--text-muted)">Nessun risultato</div>';
+          results.classList.remove('hidden');
+          return;
+        }
+        results.innerHTML = matches.map(p => `
+          <div class="search-result-item" data-name="${p.Nome}">
+            <span class="sr-name">${p.Nome}</span>
+            <span class="sr-info">${p.R} | ${p.Squadra} | qt. ${p.QtA}</span>
+          </div>
+        `).join('');
+        results.classList.remove('hidden');
+        results.querySelectorAll('.search-result-item[data-name]').forEach(item => {
+          item.addEventListener('click', () => {
+            const name = item.dataset.name;
+            const player = Store.getPlayerByName(name);
+            if (player) {
+              setter(player);
+              input.value = player.Nome;
+              renderTable();
+            }
+            results.classList.add('hidden');
+          });
+        });
+      });
+      input.addEventListener('blur', () => setTimeout(() => results.classList.add('hidden'), 200));
+    };
+
+    bindSearch('cmp-search-1', 'cmp-results-1', p => { player1 = p; });
+    bindSearch('cmp-search-2', 'cmp-results-2', p => { player2 = p; });
+  },
+
+  generateShareImage() {
+    const canvas = document.getElementById('share-canvas');
+    const ctx = canvas.getContext('2d');
+    const config = Store.getConfig();
+    const teams = Store.getTeams();
+    const roles = Store.getConfiguredRoles();
+    const myName = config ? config.myName : '';
+    const team = teams[myName];
+    if (!team) return;
+
+    const w = 800;
+    const h = 600;
+    canvas.width = w;
+    canvas.height = h;
+
+    ctx.fillStyle = '#0f1117';
+    ctx.fillRect(0, 0, w, h);
+
+    ctx.fillStyle = '#4f8cff';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.fillText(config.leagueName || 'FantaAsta AI', 30, 40);
+
+    ctx.fillStyle = '#8b8fa3';
+    ctx.font = '14px sans-serif';
+    ctx.fillText(`Rosa di ${myName} — Crediti residui: ${team.credits}cr`, 30, 65);
+
+    let y = 100;
+    const roleLabels = { P: 'PORTIERI', D: 'DIFENSORI', C: 'CENTROCAMP', A: 'ATTACCANTI' };
+    ['P', 'D', 'C', 'A'].forEach(r => {
+      const players = team.roster[r] || [];
+      const total = roles[r] || 0;
+      ctx.fillStyle = '#4f8cff';
+      ctx.font = 'bold 16px sans-serif';
+      ctx.fillText(`${roleLabels[r]} (${players.length}/${total})`, 30, y);
+      y += 25;
+
+      if (players.length === 0) {
+        ctx.fillStyle = '#8b8fa3';
+        ctx.font = '13px sans-serif';
+        ctx.fillText('  Nessuno ancora', 30, y);
+        y += 20;
+      } else {
+        players.forEach(p => {
+          ctx.fillStyle = '#e4e6eb';
+          ctx.font = '14px sans-serif';
+          ctx.fillText(`  ${p.name}`, 30, y);
+          ctx.fillStyle = '#8b8fa3';
+          ctx.fillText(`${p.price}cr`, 250, y);
+          y += 22;
+        });
+      }
+      y += 10;
+    });
+
+    ctx.fillStyle = '#8b8fa3';
+    ctx.font = '11px sans-serif';
+    const date = new Date().toLocaleDateString('it-IT');
+    ctx.fillText(`Generato da FantaAsta AI — ${date}`, 30, h - 15);
+
+    canvas.toBlob(blob => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `fantaasta_rosa_${myName.replace(/\s+/g, '_')}.png`;
+      a.click();
+      URL.revokeObjectURL(url);
+    });
   }
 };

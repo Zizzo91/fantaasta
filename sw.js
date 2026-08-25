@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fantaasta-v2';
+const CACHE_NAME = 'fantaasta-v3';
 
 const PRECACHE_ASSETS = [
   './',
@@ -12,7 +12,9 @@ const PRECACHE_ASSETS = [
   './js/app.js',
   './icons/icon-192.png',
   './icons/icon-512.png',
-  'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js'
+  'https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js',
+  'https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js',
+  'https://cdn.jsdelivr.net/npm/sortablejs@1.15.3/Sortable.min.js'
 ];
 
 self.addEventListener('install', (event) => {
