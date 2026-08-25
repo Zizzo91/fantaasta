@@ -256,30 +256,24 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
         return ctx;
       });
 
-    const available = players;
     const topAvailable = {};
     ['P', 'D', 'C', 'A'].forEach(r => {
-      const needed = meCtx.slots_left[r] || 0;
-      if (needed > 0) {
-        topAvailable[r] = available
+      if ((meCtx.slots_left[r] || 0) > 0) {
+        topAvailable[r] = players
           .filter(p => p.R === r)
           .sort((a, b) => b.FVM - a.FVM)
-          .slice(0, 10)
+          .slice(0, 5)
           .map(p => ({ name: p.Nome, team: p.Squadra, qtA: p.QtA, fvm: p.FVM }));
       }
     });
 
     const availableWishlist = wishlist
+      .slice(0, 10)
       .map(w => {
         const p = players.find(pl => pl.Nome.toLowerCase().includes(w.name.toLowerCase()));
         return p ? { name: p.Nome, role: p.R, team: p.Squadra, qtA: p.QtA, fvm: p.FVM, priority: w.priority } : null;
       })
       .filter(Boolean);
-
-    const marketRemaining = { P: 0, D: 0, C: 0, A: 0 };
-    players.forEach(p => {
-      if (marketRemaining[p.R] !== undefined) marketRemaining[p.R]++;
-    });
 
     return {
       league: { name: config.leagueName, participants: participants.length, credits: config.credits, min_bid: config.minBid },
@@ -287,7 +281,6 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
       me: meCtx,
       opponents,
       my_wishlist: availableWishlist,
-      market_remaining: marketRemaining,
       top_available: topAvailable
     };
   },
@@ -327,18 +320,10 @@ Regole:
   async getPreAstaPlan() {
     const ctx = this.buildPreAstaContext();
     const userPrompt = `Genera un piano strategico completo pre-asta per la mia squadra.\n\nContesto lega:\n${JSON.stringify(ctx, null, 2)}\n\nRispondi SOLO con JSON valido secondo il formato richiesto.`;
-    try {
-      const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
-      const result = this.extractJson(raw);
-      result.generated_at = Date.now();
-      Store.savePreAstaPlan(result);
-      return result;
-    } catch (e1) {
-      const raw2 = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
-      const result = this.extractJson(raw2);
-      result.generated_at = Date.now();
-      Store.savePreAstaPlan(result);
-      return result;
-    }
+    const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
+    const result = this.extractJson(raw);
+    result.generated_at = Date.now();
+    Store.savePreAstaPlan(result);
+    return result;
   }
 };

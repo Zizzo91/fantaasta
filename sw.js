@@ -1,4 +1,4 @@
-const CACHE_NAME = 'fantaasta-v7';
+const CACHE_NAME = 'fantaasta-v8';
 
 const PRECACHE_ASSETS = [
   './',
