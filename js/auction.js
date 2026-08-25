@@ -226,14 +226,6 @@ const Auction = {
       this.showFinalizeSale(buyer);
     });
 
-    document.getElementById('btn-unassigned2').addEventListener('click', () => {
-      if (!this.currentPlayer) return;
-      Store.recordUnassigned(this.currentPlayer);
-      this.resetAll();
-      this.refresh();
-      Dashboard.refresh();
-    });
-
     document.getElementById('btn-confirm-sale').addEventListener('click', () => {
       if (!this.currentPlayer) return;
       const buyer = document.getElementById('final-buyer').value;

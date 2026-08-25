@@ -16,7 +16,7 @@ const Dashboard = {
       ghostClass: 'dash-card-ghost',
       chosenClass: 'dash-card-chosen',
       dragClass: 'dash-card-drag',
-      filter: '[data-id="player-compare"]',
+      draggable: '.dash-card:not([data-id="player-compare"])',
       onEnd: () => {
         const all = Array.from(grid.querySelectorAll('.dash-card')).map(c => c.dataset.id);
         const order = all.filter(id => id !== 'player-compare');
