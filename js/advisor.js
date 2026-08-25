@@ -18,8 +18,9 @@ const Advisor = {
         parts: [{ text: systemPrompt }]
       },
       generationConfig: {
-        temperature: 0.3,
-        maxOutputTokens: maxTokens || 1024
+        temperature: 0.2,
+        maxOutputTokens: maxTokens || 1024,
+        responseMimeType: 'application/json'
       }
     };
 
@@ -167,18 +168,14 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
 
   extractJson(text) {
     let cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
-    const start = cleaned.indexOf('{');
-    if (start === -1) {
-      throw new Error('No JSON found in: ' + text.substring(0, 120));
-    }
-    cleaned = cleaned.substring(start);
-    let lastClose = cleaned.lastIndexOf('}');
-    if (lastClose === -1) {
-      throw new Error('Incomplete JSON in: ' + text.substring(0, 120));
-    }
-    let candidate = cleaned.substring(0, lastClose + 1);
 
-    const attempts = [
+    const firstBrace = cleaned.indexOf('{');
+    if (firstBrace === -1) {
+      throw new Error('No JSON found in: ' + text.substring(0, 150));
+    }
+    cleaned = cleaned.substring(firstBrace);
+
+    const regexFixes = [
       s => s,
       s => s.replace(/,\s*([\]}])/g, '$1'),
       s => s.replace(/(["}\]])\s*\n\s*"/g, '$1,"'),
@@ -186,10 +183,17 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
       s => s.replace(/,\s*([\]}])/g, '$1').replace(/(["}\]])\s*"/g, '$1,"'),
     ];
 
-    for (const fix of attempts) {
-      try {
-        return JSON.parse(fix(candidate));
-      } catch (e) { /* try next */ }
+    for (let end = cleaned.length; end > 10; end--) {
+      const sub = cleaned.substring(0, end);
+      const lastClose = sub.lastIndexOf('}');
+      if (lastClose === -1) continue;
+      const candidate = sub.substring(0, lastClose + 1);
+      for (const fix of regexFixes) {
+        try {
+          const result = JSON.parse(fix(candidate));
+          if (result && typeof result === 'object') return result;
+        } catch (e) { /* try next */ }
+      }
     }
     throw new Error('JSON irrecuperabile dopo riparazioni. Riprova.');
   },
@@ -320,7 +324,7 @@ Regole:
   async getPreAstaPlan() {
     const ctx = this.buildPreAstaContext();
     const userPrompt = `Genera un piano strategico completo pre-asta per la mia squadra.\n\nContesto lega:\n${JSON.stringify(ctx, null, 2)}\n\nRispondi SOLO con JSON valido secondo il formato richiesto.`;
-    const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 2048);
+    const raw = await this.callGemini(this.PREASTA_SYSTEM_PROMPT, userPrompt, 4096);
     const result = this.extractJson(raw);
     result.generated_at = Date.now();
     Store.savePreAstaPlan(result);
