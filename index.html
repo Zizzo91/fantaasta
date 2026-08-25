@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <meta name="theme-color" content="#0f1117">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="Assistente AI per asta del fantacalcio italiano">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <title>FantaAsta AI</title>
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.4.1/papaparse.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>FantaAsta AI</h1>
+    <p id="header-info"></p>
+  </header>
+
+  <nav>
+    <button class="tab-btn active" data-tab="config">Config</button>
+    <button class="tab-btn" data-tab="dashboard">Dashboard</button>
+    <button class="tab-btn" data-tab="auction">Asta</button>
+    <button class="tab-btn" data-tab="settings">Impostazioni</button>
+  </nav>
+
+  <main>
+    <section id="tab-config" class="tab-content active">
+      <h2>Configurazione Lega</h2>
+
+      <div class="config-section">
+        <h3>Parametri Lega</h3>
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="league-name">Nome Lega</label>
+            <input type="text" id="league-name" placeholder="es. Lega degli Amici">
+          </div>
+          <div class="form-group">
+            <label for="num-participants">N Partecipanti</label>
+            <input type="number" id="num-participants" min="2" max="20" value="8">
+          </div>
+          <div class="form-group">
+            <label for="credits">Crediti per partecipante</label>
+            <input type="number" id="credits" min="100" max="1000" value="250">
+          </div>
+          <div class="form-group">
+            <label for="min-bid">Rilancio minimo</label>
+            <input type="number" id="min-bid" min="1" max="10" value="1">
+          </div>
+        </div>
+
+        <h3>Composizione Rose</h3>
+        <div class="form-grid roster-grid">
+          <div class="form-group">
+            <label for="roster-p">Portieri (P)</label>
+            <input type="number" id="roster-p" min="1" max="5" value="3">
+          </div>
+          <div class="form-group">
+            <label for="roster-d">Difensori (D)</label>
+            <input type="number" id="roster-d" min="3" max="12" value="8">
+          </div>
+          <div class="form-group">
+            <label for="roster-c">Centrocampisti (C)</label>
+            <input type="number" id="roster-c" min="3" max="12" value="8">
+          </div>
+          <div class="form-group">
+            <label for="roster-a">Attaccanti (A)</label>
+            <input type="number" id="roster-a" min="1" max="8" value="6">
+          </div>
+        </div>
+        <p class="roster-total" id="roster-total">Totale: 25 giocatori per rosa</p>
+      </div>
+
+      <div class="config-section">
+        <h3>Upload CSV Quotazioni</h3>
+        <div id="csv-dropzone" class="dropzone">
+          <p>Trascina qui il file CSV oppure <label for="csv-file" class="link-label">sfoglia</label></p>
+          <input type="file" id="csv-file" accept=".csv" hidden>
+        </div>
+        <div id="csv-info" class="hidden">
+          <p id="csv-filename"></p>
+          <p id="csv-count"></p>
+          <div class="csv-preview">
+            <h4>Anteprima (prime 5 righe)</h4>
+            <div id="csv-preview-table"></div>
+          </div>
+          <button id="csv-confirm" class="btn btn-primary">Conferma e Salva CSV</button>
+          <button id="csv-remove" class="btn btn-danger">Rimuovi</button>
+        </div>
+        <div id="csv-loaded" class="hidden success-box">
+          <p>CSV caricato: <span id="csv-loaded-info"></span></p>
+        </div>
+      </div>
+
+      <div class="config-section">
+        <h3>Partecipanti</h3>
+        <p class="hint">Inserisci i nomi di tutti i partecipanti. I crediti iniziali possono essere personalizzati.</p>
+        <table id="participants-table" class="data-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Nome</th>
+              <th>Crediti Iniziali</th>
+              <th>Io</th>
+              <th>Azioni</th>
+            </tr>
+          </thead>
+          <tbody id="participants-body"></tbody>
+        </table>
+        <button id="add-participant" class="btn btn-secondary">+ Aggiungi Partecipante</button>
+      </div>
+
+      <div class="config-section">
+        <h3>Wishlist</h3>
+        <p class="hint">Inserisci i calciatori che desideri, in ordine di priorit (1 = prima scelta). Un calciatore per riga.</p>
+        <textarea id="wishlist-input" rows="10" placeholder="Bastoni&#10;Tomori&#10;Barella&#10;Pulisic&#10;..."></textarea>
+        <p class="hint" id="wishlist-count">0 calciatori in wishlist</p>
+      </div>
+
+      <div class="config-actions">
+        <button id="save-config" class="btn btn-primary btn-large">Salva Configurazione</button>
+      </div>
+    </section>
+
+    <section id="tab-dashboard" class="tab-content">
+      <h2>Dashboard</h2>
+      <div id="dashboard-empty" class="empty-state">
+        <p>Completa la configurazione nella tab Config per visualizzare la dashboard.</p>
+      </div>
+      <div id="dashboard-content" class="hidden">
+        <div class="dashboard-grid">
+          <div class="dash-card">
+            <h3>Le Mie Rose</h3>
+            <div id="my-roster"></div>
+          </div>
+          <div class="dash-card">
+            <h3>Classifica Crediti Residui</h3>
+            <div id="credits-ranking"></div>
+          </div>
+          <div class="dash-card">
+            <h3>Mercato Residuo</h3>
+            <div id="market-remaining"></div>
+          </div>
+          <div class="dash-card">
+            <h3>Wishlist</h3>
+            <div id="wishlist-status"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-auction" class="tab-content">
+      <h2>Asta</h2>
+      <div id="auction-empty" class="empty-state">
+        <p>Completa la configurazione nella tab Config per iniziare l'asta.</p>
+      </div>
+      <div id="auction-content" class="hidden">
+        <div class="auction-layout">
+          <div class="auction-left">
+            <div class="caller-select">
+              <label for="caller-dropdown"><strong>Chi chiama?</strong></label>
+              <select id="caller-dropdown">
+                <option value="">-- Seleziona --</option>
+              </select>
+            </div>
+
+            <div id="auction-my-turn" class="hidden">
+              <h3>Il Tuo Turno</h3>
+              <div class="form-group">
+                <label for="call-role-select">Che ruolo chiami?</label>
+                <select id="call-role-select">
+                  <option value="">-- Seleziona ruolo --</option>
+                </select>
+              </div>
+              <div id="ai-suggestion-call" class="ai-box hidden"></div>
+              <div class="form-group">
+                <label>Cerca Calciatore</label>
+                <input type="text" id="player-search-call" placeholder="Nome calciatore..." autocomplete="off">
+                <div id="player-search-results-call" class="search-results hidden"></div>
+              </div>
+              <div id="selected-player-call" class="selected-player hidden"></div>
+              <button id="confirm-call" class="btn btn-primary hidden">Chiama Questo Calciatore</button>
+            </div>
+
+            <div id="auction-other-turn" class="hidden">
+              <h3><span id="caller-name-display"></span> Chiama</h3>
+              <div class="form-group">
+                <label>Cerca Calciatore</label>
+                <input type="text" id="player-search-bid" placeholder="Nome calciatore..." autocomplete="off">
+                <div id="player-search-results-bid" class="search-results hidden"></div>
+              </div>
+              <div id="selected-player-bid" class="selected-player hidden"></div>
+              <div id="current-bid-section" class="hidden">
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="current-bid-price">Prezzo Attuale</label>
+                    <input type="number" id="current-bid-price" min="1">
+                  </div>
+                </div>
+              </div>
+              <div id="context-panel" class="hidden">
+                <h4>Contesto</h4>
+                <div id="context-info"></div>
+              </div>
+              <div id="ai-suggestion-bid" class="ai-box hidden"></div>
+              <div class="bid-actions hidden" id="bid-actions">
+                <button id="btn-bid" class="btn btn-primary">Rilancia</button>
+                <button id="btn-pass" class="btn btn-secondary">Molla</button>
+                <button id="btn-finalize" class="btn btn-success">Conferma Acquisto</button>
+                <button id="btn-unassigned" class="btn btn-warning">Svincolato</button>
+              </div>
+            </div>
+
+            <div id="finalize-section" class="hidden">
+              <div class="config-section">
+                <h3>Registra Esito</h3>
+                <div class="form-grid">
+                  <div class="form-group">
+                    <label for="final-buyer">Acquirente</label>
+                    <select id="final-buyer"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="final-price">Prezzo Finale</label>
+                    <input type="number" id="final-price" min="1">
+                  </div>
+                </div>
+                <div class="bid-actions">
+                  <button id="btn-confirm-sale" class="btn btn-success">Conferma Vendita</button>
+                  <button id="btn-cancel-sale" class="btn btn-secondary">Annulla</button>
+                  <button id="btn-unassigned2" class="btn btn-warning">Svincolato</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="auction-right">
+            <h3>Storico Asta</h3>
+            <div id="auction-log"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="tab-settings" class="tab-content">
+      <h2>Impostazioni</h2>
+
+      <div class="config-section">
+        <h3>API Key Google Gemini</h3>
+        <p class="hint">Inserisci la tua API key di Google Gemini per abilitare i suggerimenti AI. Modello: gemini-2.0-flash (gratuito, 15 rpm, 1M token/giorno). Ottieni la key su <a href="https://aistudio.google.com/apikey" target="_blank" class="link-label">aistudio.google.com</a></p>
+        <div class="form-group">
+          <input type="password" id="api-key" placeholder="AIza...">
+          <button id="toggle-api-visibility" class="btn btn-small">Mostra</button>
+        </div>
+        <button id="save-api-key" class="btn btn-primary">Salva API Key</button>
+        <p id="api-key-status" class="hint"></p>
+      </div>
+
+      <div class="config-section">
+        <h3>Gestione Dati</h3>
+        <div class="btn-group">
+          <button id="btn-export" class="btn btn-secondary">Esporta Stato (JSON)</button>
+          <label class="btn btn-secondary">
+            Importa Stato
+            <input type="file" id="btn-import" accept=".json" hidden>
+          </label>
+        </div>
+        <div class="danger-zone">
+          <h4>Zona Pericolosa</h4>
+          <button id="btn-new-auction" class="btn btn-danger">Nuova Asta (Cancella Tutto)</button>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="js/store.js"></script>
+  <script src="js/config.js"></script>
+  <script src="js/auction.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/advisor.js"></script>
+  <script src="js/app.js"></script>
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('./sw.js');
+    }
+  </script>
+</body>
+</html>
