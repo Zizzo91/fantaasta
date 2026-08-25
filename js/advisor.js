@@ -177,12 +177,21 @@ Per il bluff: calcola il danno economico massimo all'avversario.`,
       throw new Error('Incomplete JSON in: ' + text.substring(0, 120));
     }
     let candidate = cleaned.substring(0, lastClose + 1);
-    try {
-      return JSON.parse(candidate);
-    } catch (e) {
-      candidate = candidate.replace(/,\s*([\]}])/g, '$1');
-      return JSON.parse(candidate);
+
+    const attempts = [
+      s => s,
+      s => s.replace(/,\s*([\]}])/g, '$1'),
+      s => s.replace(/(["}\]])\s*\n\s*"/g, '$1,"'),
+      s => s.replace(/(["}\]])\s*"/g, '$1,"'),
+      s => s.replace(/,\s*([\]}])/g, '$1').replace(/(["}\]])\s*"/g, '$1,"'),
+    ];
+
+    for (const fix of attempts) {
+      try {
+        return JSON.parse(fix(candidate));
+      } catch (e) { /* try next */ }
     }
+    throw new Error('JSON irrecuperabile dopo riparazioni. Riprova.');
   },
 
   async getSuggestion(player) {
