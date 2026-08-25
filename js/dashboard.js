@@ -1,5 +1,5 @@
 const Dashboard = {
-  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'preasta-planner', 'player-compare'],
+  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'budget-planner', 'preasta-planner', 'player-compare'],
 
   init() {
     document.getElementById('btn-share').addEventListener('click', () => this.generateShareImage());
@@ -96,6 +96,7 @@ const Dashboard = {
       this.renderMarketRemaining();
       this.renderWishlistStatus();
       this.renderBudgetSimulator();
+      this.renderBudgetPlanner();
       this.renderPreAstaPlanner();
       this.renderPlayerCompare();
     }
@@ -508,6 +509,105 @@ const Dashboard = {
 
     priceInput.addEventListener('input', updateResult);
     document.getElementById('sim-team').addEventListener('change', updateResult);
+  },
+
+  renderBudgetPlanner() {
+    const container = document.getElementById('budget-planner');
+    const config = Store.getConfig();
+    const roles = Store.getConfiguredRoles();
+    const data = Store.getBudgetPlanner();
+
+    if (!config) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Configura la lega prima.</p>';
+      return;
+    }
+
+    const totalCredits = parseInt(config.credits) || 250;
+    const totalSlots = roles.P + roles.D + roles.C + roles.A;
+
+    const render = () => {
+      const pcts = { P: data.P || 0, D: data.D || 0, C: data.C || 0, A: data.A || 0 };
+      const sum = pcts.P + pcts.D + pcts.C + pcts.A;
+      const isBalanced = sum === 100;
+
+      let html = '<div class="bp-header">';
+      html += `<span class="bp-total">Budget: <strong>${totalCredits}cr</strong> | Rose: <strong>${totalSlots} slot</strong></span>`;
+      html += `<span class="bp-sum ${isBalanced ? '' : 'bp-warn'}">${sum}%</span>`;
+      html += '</div>';
+
+      html += '<div class="bp-bar">';
+      ['P', 'D', 'C', 'A'].forEach(r => {
+        if (pcts[r] > 0) {
+          html += `<div class="bp-bar-seg bp-bar-${r}" style="width:${pcts[r]}%">${pcts[r]}%</div>`;
+        }
+      });
+      html += '</div>';
+
+      html += '<div class="bp-roles">';
+      ['P', 'D', 'C', 'A'].forEach(r => {
+        const credits = Math.round(totalCredits * pcts[r] / 100);
+        const slotCount = roles[r] || 0;
+        const perSlot = slotCount > 0 ? Math.round(credits / slotCount) : 0;
+        const roleLabels = { P: 'Portieri', D: 'Difensori', C: 'Centrocampisti', A: 'Attaccanti' };
+
+        html += `<div class="bp-role">
+          <div class="bp-role-header">
+            <span class="bp-role-label bp-color-${r}">${roleLabels[r]}</span>
+            <span class="bp-role-credits">${credits}cr</span>
+          </div>
+          <div class="bp-slider-row">
+            <input type="range" min="0" max="100" value="${pcts[r]}" data-role="${r}" class="bp-slider bp-slider-${r}">
+            <input type="number" min="0" max="100" value="${pcts[r]}" data-role="${r}" class="bp-pct-input">
+            <span class="bp-pct-sign">%</span>
+          </div>
+          <div class="bp-role-detail">${slotCount} slot &rarr; ~${perSlot}cr/a</div>
+        </div>`;
+      });
+      html += '</div>';
+
+      const alerts = [];
+      if (!isBalanced) alerts.push({ type: 'warn', msg: `Totale ${sum}%: deve essere 100%` });
+      if (roles.P > 0 && pcts.P < 5) alerts.push({ type: 'warn', msg: 'Pochi crediti per i portieri (<5%)' });
+      ['D', 'C', 'A'].forEach(r => {
+        const slotCount = roles[r] || 0;
+        const credits = Math.round(totalCredits * pcts[r] / 100);
+        const perSlot = slotCount > 0 ? Math.round(credits / slotCount) : 0;
+        if (pcts[r] > 0 && perSlot > 40) alerts.push({ type: 'info', msg: `${r}: ~${perSlot}cr/slot — potrebbe essere troppo alto` });
+      });
+      if (totalCredits * pcts.P / 100 > totalCredits * 0.4) {
+        alerts.push({ type: 'warn', msg: 'Portieri >40% del budget — considera di ridurre' });
+      }
+
+      if (alerts.length > 0) {
+        html += '<div class="bp-alerts">';
+        alerts.forEach(a => {
+          html += `<div class="bp-alert bp-alert-${a.type}">${a.msg}</div>`;
+        });
+        html += '</div>';
+      }
+
+      container.innerHTML = html;
+
+      container.querySelectorAll('.bp-slider').forEach(slider => {
+        slider.addEventListener('change', (e) => {
+          const role = e.target.dataset.role;
+          data[role] = parseInt(e.target.value) || 0;
+          Store.saveBudgetPlanner(data);
+          render();
+        });
+      });
+
+      container.querySelectorAll('.bp-pct-input').forEach(input => {
+        input.addEventListener('change', (e) => {
+          const role = e.target.dataset.role;
+          data[role] = Math.min(100, Math.max(0, parseInt(e.target.value) || 0));
+          Store.saveBudgetPlanner(data);
+          render();
+        });
+      });
+    };
+
+    render();
   },
 
   renderPreAstaPlanner() {
