@@ -1,5 +1,5 @@
 const Dashboard = {
-  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'budget-planner', 'preasta-planner', 'player-compare'],
+  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'budget-planner', 'preasta-planner', 'player-compare', 'low-cost-filter'],
 
   init() {
     document.getElementById('btn-share').addEventListener('click', () => this.generateShareImage());
@@ -124,6 +124,7 @@ const Dashboard = {
       this.renderBudgetPlanner();
       this.renderPreAstaPlanner();
       this.renderPlayerCompare();
+      this.renderLowCostFilter();
     }
 
     this.applySpendingExpand();
@@ -850,6 +851,62 @@ const Dashboard = {
 
     bindSearch('cmp-search-1', 'cmp-results-1', p => { player1 = p; });
     bindSearch('cmp-search-2', 'cmp-results-2', p => { player2 = p; });
+  },
+
+  renderLowCostFilter() {
+    const container = document.getElementById('low-cost-filter');
+    const players = Store.getPlayers();
+    const auctioned = Store.getAuctionedPlayerIds();
+    const config = Store.getConfig();
+
+    if (!config || players.length === 0) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Carica il CSV delle quotazioni prima.</p>';
+      return;
+    }
+
+    const threshold = parseInt(config.lcfThreshold) || 5;
+    const available = players.filter(p => !auctioned.has(p.Nome) && p.QtA <= threshold);
+    const roleLabels = { P: 'Portieri', D: 'Difensori', C: 'Centrocampisti', A: 'Attaccanti' };
+
+    let html = `<div class="lcf-header">
+      <span>Giocatori svincolati con Qt.A ≤ <input type="number" id="lcf-threshold" min="1" max="10" value="${threshold}" class="lcf-threshold-input"></span>
+      <span class="lcf-count">${available.length} disponibili</span>
+    </div>`;
+
+    if (available.length === 0) {
+      html += '<p style="color:var(--text-muted);font-size:0.85rem">Nessun giocatore trovato con questa soglia.</p>';
+    } else {
+      ['P', 'D', 'C', 'A'].forEach(r => {
+        const rolePlayers = available.filter(p => p.R === r).sort((a, b) => b.FVM - a.FVM);
+        if (rolePlayers.length === 0) return;
+        html += `<div class="lcf-role">
+          <div class="lcf-role-header">
+            <span class="lcf-role-label lcf-color-${r}">${roleLabels[r]}</span>
+            <span class="lcf-role-count">${rolePlayers.length}</span>
+          </div>
+          <div class="lcf-list">`;
+        rolePlayers.forEach(p => {
+          html += `<div class="lcf-item">
+            <span class="lcf-name">${p.Nome}</span>
+            <span class="lcf-team">${p.Squadra}</span>
+            <span class="lcf-stats">QtA ${p.QtA} | FVM ${p.FVM}</span>
+          </div>`;
+        });
+        html += '</div></div>';
+      });
+    }
+
+    container.innerHTML = html;
+
+    document.getElementById('lcf-threshold').addEventListener('change', (e) => {
+      const val = parseInt(e.target.value) || 5;
+      const cfg = Store.getConfig();
+      if (cfg) {
+        cfg.lcfThreshold = val;
+        Store.saveConfig(cfg);
+      }
+      this.renderLowCostFilter();
+    });
   },
 
   generateShareImage() {

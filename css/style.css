@@ -1282,6 +1282,94 @@ textarea {
   border-left: 3px solid #60a5fa;
 }
 
+/* Low-Cost Filter */
+.lcf-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.lcf-threshold-input {
+  width: 40px;
+  text-align: center;
+  font-size: 0.85rem;
+  padding: 0.15rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  color: var(--text);
+  margin: 0 0.2rem;
+}
+
+.lcf-count {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.lcf-role {
+  margin-bottom: 0.6rem;
+}
+
+.lcf-role-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.3rem;
+}
+
+.lcf-role-label {
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.lcf-color-P { color: #60a5fa; }
+.lcf-color-D { color: #34d399; }
+.lcf-color-C { color: #fbbf24; }
+.lcf-color-A { color: #f87171; }
+
+.lcf-role-count {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  background: var(--bg-input);
+  padding: 0.1rem 0.4rem;
+  border-radius: 8px;
+}
+
+.lcf-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.lcf-item {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.3rem 0.5rem;
+  background: var(--bg-input);
+  border-radius: 4px;
+  font-size: 0.8rem;
+}
+
+.lcf-name {
+  font-weight: 500;
+  min-width: 120px;
+}
+
+.lcf-team {
+  color: var(--text-muted);
+  min-width: 60px;
+}
+
+.lcf-stats {
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  margin-left: auto;
+}
+
 /* Player compare */
 .compare-controls {
   display: flex;
