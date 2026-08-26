@@ -19,7 +19,7 @@ const Advisor = {
       },
       generationConfig: {
         temperature: 0.2,
-        maxOutputTokens: maxTokens || 1024,
+        maxOutputTokens: maxTokens || 2048,
         responseMimeType: 'application/json'
       }
     };

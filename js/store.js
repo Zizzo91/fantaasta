@@ -112,12 +112,19 @@ const Store = {
       teams[buyer].credits -= price;
       const mainRole = player.R || player.role;
       if (teams[buyer].roster[mainRole]) {
+        const pName = player.Nome || player.name;
+        const pTeam = player.Squadra || player.team || '';
         teams[buyer].roster[mainRole].push({
           id: player.Id || player.id,
-          name: player.Nome || player.name,
+          name: pName,
+          Nome: pName,
           role: mainRole,
-          team: player.Squadra || player.team,
-          price: price
+          R: mainRole,
+          team: pTeam,
+          Squadra: pTeam,
+          price: price,
+          FVM: player.FVM ?? player.fvm ?? 0,
+          QtA: player.QtA ?? player.qtA ?? 0
         });
       }
       this.saveTeams(teams);

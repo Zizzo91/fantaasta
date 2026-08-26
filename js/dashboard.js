@@ -949,9 +949,26 @@ const Dashboard = {
 
     const myName = config.myName || '';
     const team = teams[myName] || { credits: config.credits, roster: { P: [], D: [], C: [], A: [] } };
+    const masterPlayers = Store.getPlayers();
+    const byName = new Map(masterPlayers.map(p => [p.Nome.toLowerCase(), p]));
+    const enrich = (p) => {
+      const key = (p.name || p.Nome || '').toLowerCase();
+      const m = byName.get(key);
+      return {
+        ...p,
+        Nome: p.Nome || p.name || 'Sconosciuto',
+        name: p.name || p.Nome || 'Sconosciuto',
+        Squadra: p.Squadra || p.team || (m ? m.Squadra : ''),
+        team: p.team || p.Squadra || (m ? m.Squadra : ''),
+        FVM: p.FVM ?? p.fvm ?? (m ? m.FVM : 0),
+        fvm: p.fvm ?? p.FVM ?? (m ? m.FVM : 0),
+        QtA: p.QtA ?? p.qtA ?? (m ? m.QtA : 0),
+        R: p.R || p.role || ''
+      };
+    };
     const allBought = [];
     ['P', 'D', 'C', 'A'].forEach(r => {
-      (team.roster[r] || []).forEach(p => allBought.push({ ...p, R: r }));
+      (team.roster[r] || []).forEach(p => allBought.push(enrich({ ...p, R: r })));
     });
 
     const FORMATIONS = {
