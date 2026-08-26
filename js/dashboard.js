@@ -1,5 +1,5 @@
 const Dashboard = {
-  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'budget-planner', 'preasta-planner', 'player-compare', 'low-cost-filter'],
+  DEFAULT_ORDER: ['my-roster', 'credits-ranking', 'spending-ranking', 'market-remaining', 'wishlist-status', 'budget-simulator', 'budget-planner', 'preasta-planner', 'player-compare', 'low-cost-filter', 'formation-field'],
 
   init() {
     document.getElementById('btn-share').addEventListener('click', () => this.generateShareImage());
@@ -125,6 +125,7 @@ const Dashboard = {
       this.renderPreAstaPlanner();
       this.renderPlayerCompare();
       this.renderLowCostFilter();
+      this.renderFormationField();
     }
 
     this.applySpendingExpand();
@@ -906,6 +907,146 @@ const Dashboard = {
         Store.saveConfig(cfg);
       }
       this.renderLowCostFilter();
+    });
+  },
+
+  renderFormationField() {
+    const container = document.getElementById('formation-field');
+    const config = Store.getConfig();
+    const teams = Store.getTeams();
+    const roles = Store.getConfiguredRoles();
+    const data = Store.getFormation();
+
+    if (!config) {
+      container.innerHTML = '<p style="color:var(--text-muted)">Configura la lega prima.</p>';
+      return;
+    }
+
+    const myName = config.myName || '';
+    const team = teams[myName] || { credits: config.credits, roster: { P: [], D: [], C: [], A: [] } };
+    const allBought = [];
+    ['P', 'D', 'C', 'A'].forEach(r => {
+      (team.roster[r] || []).forEach(p => allBought.push({ ...p, R: r }));
+    });
+
+    const FORMATIONS = {
+      '4-3-3': { P:1, D:4, C:3, A:3, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:15, y:72},{role:'D', x:38, y:72},{role:'D', x:62, y:72},{role:'D', x:85, y:72},
+        {role:'C', x:25, y:50},{role:'C', x:50, y:50},{role:'C', x:75, y:50},
+        {role:'A', x:20, y:25},{role:'A', x:50, y:25},{role:'A', x:80, y:25}
+      ]},
+      '4-4-2': { P:1, D:4, C:4, A:2, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:15, y:72},{role:'D', x:38, y:72},{role:'D', x:62, y:72},{role:'D', x:85, y:72},
+        {role:'C', x:15, y:48},{role:'C', x:38, y:48},{role:'C', x:62, y:48},{role:'C', x:85, y:48},
+        {role:'A', x:35, y:25},{role:'A', x:65, y:25}
+      ]},
+      '3-5-2': { P:1, D:3, C:5, A:2, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:25, y:72},{role:'D', x:50, y:72},{role:'D', x:75, y:72},
+        {role:'C', x:10, y:50},{role:'C', x:30, y:48},{role:'C', x:50, y:45},{role:'C', x:70, y:48},{role:'C', x:90, y:50},
+        {role:'A', x:35, y:25},{role:'A', x:65, y:25}
+      ]},
+      '3-4-3': { P:1, D:3, C:4, A:3, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:25, y:72},{role:'D', x:50, y:72},{role:'D', x:75, y:72},
+        {role:'C', x:15, y:50},{role:'C', x:38, y:50},{role:'C', x:62, y:50},{role:'C', x:85, y:50},
+        {role:'A', x:20, y:25},{role:'A', x:50, y:25},{role:'A', x:80, y:25}
+      ]},
+      '5-3-2': { P:1, D:5, C:3, A:2, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:10, y:72},{role:'D', x:30, y:72},{role:'D', x:50, y:72},{role:'D', x:70, y:72},{role:'D', x:90, y:72},
+        {role:'C', x:25, y:48},{role:'C', x:50, y:48},{role:'C', x:75, y:48},
+        {role:'A', x:35, y:25},{role:'A', x:65, y:25}
+      ]},
+      '5-4-1': { P:1, D:5, C:4, A:1, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:10, y:72},{role:'D', x:30, y:72},{role:'D', x:50, y:72},{role:'D', x:70, y:72},{role:'D', x:90, y:72},
+        {role:'C', x:15, y:48},{role:'C', x:38, y:48},{role:'C', x:62, y:48},{role:'C', x:85, y:48},
+        {role:'A', x:50, y:25}
+      ]},
+      '4-2-3-1': { P:1, D:4, C:2, A:1, cam:3, positions: [
+        {role:'P', x:50, y:90},
+        {role:'D', x:15, y:72},{role:'D', x:38, y:72},{role:'D', x:62, y:72},{role:'D', x:85, y:72},
+        {role:'C', x:35, y:55},{role:'C', x:65, y:55},
+        {role:'CAM', x:25, y:38},{role:'CAM', x:50, y:38},{role:'CAM', x:75, y:38},
+        {role:'A', x:50, y:22}
+      ]}
+    };
+
+    const module = data.module || '4-3-3';
+    const fmt = FORMATIONS[module] || FORMATIONS['4-3-3'];
+
+    const starters = [];
+    const bench = [];
+    const roleOrder = ['P', 'D', 'C', 'A'];
+    roleOrder.forEach(r => {
+      const players = allBought.filter(p => p.R === r).sort((a, b) => (b.FVM || 0) - (a.FVM || 0));
+      const slots = fmt[r] || 0;
+      players.forEach((p, i) => {
+        if (i < slots) starters.push(p);
+        else bench.push(p);
+      });
+    });
+
+    let html = `<div class="ff-controls">
+      <label class="ff-label">Modulo:</label>
+      <select id="ff-module" class="ff-select">
+        ${Object.keys(FORMATIONS).map(m => `<option value="${m}" ${m === module ? 'selected' : ''}>${m}</option>`).join('')}
+      </select>
+      <span class="ff-count">${starters.length} titolari | ${bench.length} panchina</span>
+    </div>`;
+
+    html += '<div class="ff-pitch">';
+    html += '<div class="ff-pitch-lines"></div>';
+
+    const nameMap = {};
+    starters.forEach(p => { nameMap[p.R + '_' + p.Nome] = p; });
+
+    fmt.positions.forEach((pos, i) => {
+      let player = null;
+      if (pos.role === 'CAM') {
+        const cams = allBought.filter(p => p.R === 'C').sort((a, b) => (b.FVM || 0) - (a.FVM || 0));
+        const usedC = starters.filter(p => p.R === 'C');
+        player = cams.find(p => !usedC.includes(p)) || null;
+      } else {
+        const byRole = starters.filter(p => p.R === pos.role);
+        const roleIdx = fmt.positions.slice(0, i).filter(p => p.role === pos.role).length;
+        player = byRole[roleIdx] || null;
+      }
+
+      const roleColors = { P: '#60a5fa', D: '#34d399', C: '#fbbf24', A: '#f87171', CAM: '#c084fc' };
+      const color = roleColors[pos.role] || '#888';
+      const label = player ? player.Nome : pos.role;
+      const sub = player ? `${player.Squadra || ''} FVM ${player.FVM || 0}` : 'Slot vuoto';
+
+      html += `<div class="ff-player" style="left:${pos.x}%;top:${pos.y}%;border-color:${color}">
+        <span class="ff-player-name">${label}</span>
+        <span class="ff-player-sub">${sub}</span>
+      </div>`;
+    });
+    html += '</div>';
+
+    if (bench.length > 0) {
+      html += '<div class="ff-bench"><h4>Panchina</h4><div class="ff-bench-list">';
+      bench.forEach(p => {
+        const roleColors = { P: '#60a5fa', D: '#34d399', C: '#fbbf24', A: '#f87171' };
+        html += `<div class="ff-bench-item">
+          <span class="ff-bench-role" style="color:${roleColors[p.R]}">${p.R}</span>
+          <span class="ff-bench-name">${p.Nome}</span>
+          <span class="ff-bench-team">${p.Squadra || ''}</span>
+        </div>`;
+      });
+      html += '</div></div>';
+    }
+
+    container.innerHTML = html;
+
+    document.getElementById('ff-module').addEventListener('change', (e) => {
+      data.module = e.target.value;
+      Store.saveFormation(data);
+      this.renderFormationField();
     });
   },
 
