@@ -10,6 +10,8 @@ const Dashboard = {
     if (!grid || typeof Sortable === 'undefined') return;
 
     this.applyCardOrder();
+    this.applyCardWidths();
+    this.applyCardCollapsed();
 
     Sortable.create(grid, {
       animation: 150,
@@ -17,12 +19,36 @@ const Dashboard = {
       ghostClass: 'dash-card-ghost',
       chosenClass: 'dash-card-chosen',
       dragClass: 'dash-card-drag',
-      draggable: '.dash-card:not([data-id="player-compare"])',
+      draggable: '.dash-card',
       onEnd: () => {
         const all = Array.from(grid.querySelectorAll('.dash-card')).map(c => c.dataset.id);
-        const order = all.filter(id => id !== 'player-compare');
-        if (!order.includes('player-compare')) order.push('player-compare');
-        Store.saveDashboardOrder(order);
+        Store.saveDashboardOrder(all);
+      }
+    });
+
+    grid.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.dash-card-toggle');
+      if (toggle) {
+        const id = toggle.dataset.target;
+        const card = grid.querySelector(`[data-id="${id}"]`);
+        if (!card) return;
+        card.classList.toggle('dash-card-wide');
+        const widths = Store.getCardWidths();
+        widths[id] = card.classList.contains('dash-card-wide');
+        Store.saveCardWidths(widths);
+        return;
+      }
+
+      const collapse = e.target.closest('.dash-card-collapse');
+      if (collapse) {
+        const id = collapse.dataset.target;
+        const card = grid.querySelector(`[data-id="${id}"]`);
+        if (!card) return;
+        card.classList.toggle('dash-card-collapsed');
+        const collapsed = Store.getCardCollapsed();
+        collapsed[id] = card.classList.contains('dash-card-collapsed');
+        Store.saveCardCollapsed(collapsed);
+        collapse.textContent = collapsed[id] ? '▶' : '▼';
       }
     });
   },
@@ -37,22 +63,6 @@ const Dashboard = {
       const card = cards.find(c => c.dataset.id === id);
       if (card) grid.appendChild(card);
     });
-
-    const compareCard = grid.querySelector('[data-id="player-compare"]');
-    if (compareCard) grid.appendChild(compareCard);
-
-    this.applyCardWidths();
-    grid.addEventListener('click', (e) => {
-      const toggle = e.target.closest('.dash-card-toggle');
-      if (!toggle) return;
-      const id = toggle.dataset.target;
-      const card = grid.querySelector(`[data-id="${id}"]`);
-      if (!card) return;
-      card.classList.toggle('dash-card-wide');
-      const widths = Store.getCardWidths();
-      widths[id] = card.classList.contains('dash-card-wide');
-      Store.saveCardWidths(widths);
-    });
   },
 
   applyCardWidths() {
@@ -63,6 +73,21 @@ const Dashboard = {
       if (!widths[id]) return;
       const card = grid.querySelector(`[data-id="${id}"]`);
       if (card) card.classList.add('dash-card-wide');
+    });
+  },
+
+  applyCardCollapsed() {
+    const grid = document.querySelector('.dashboard-grid');
+    if (!grid) return;
+    const collapsed = Store.getCardCollapsed();
+    Object.keys(collapsed).forEach(id => {
+      if (!collapsed[id]) return;
+      const card = grid.querySelector(`[data-id="${id}"]`);
+      if (card) {
+        card.classList.add('dash-card-collapsed');
+        const btn = card.querySelector('.dash-card-collapse');
+        if (btn) btn.textContent = '▶';
+      }
     });
   },
 

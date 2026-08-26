@@ -55,6 +55,9 @@ const Store = {
   saveCardWidths(data) { this._set('card_widths', data); },
   getCardWidths() { return this._get('card_widths') || {}; },
 
+  saveCardCollapsed(data) { this._set('card_collapsed', data); },
+  getCardCollapsed() { return this._get('card_collapsed') || {}; },
+
   saveFormation(data) { this._set('formation', data); },
   getFormation() { return this._get('formation') || { module: '4-3-3' }; },
 
@@ -251,7 +254,7 @@ const Store = {
 
   exportAll() {
     const data = {};
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths', 'formation'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths', 'formation', 'card_collapsed'];
     keys.forEach(k => { data[k] = this._get(k); });
     return JSON.stringify(data, null, 2);
   },
@@ -269,7 +272,7 @@ const Store = {
   },
 
   clearAll() {
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths', 'formation'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths', 'formation', 'card_collapsed'];
     keys.forEach(k => this._remove(k));
   },
 
