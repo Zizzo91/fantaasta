@@ -40,6 +40,30 @@ const Dashboard = {
 
     const compareCard = grid.querySelector('[data-id="player-compare"]');
     if (compareCard) grid.appendChild(compareCard);
+
+    this.applyCardWidths();
+    grid.addEventListener('click', (e) => {
+      const toggle = e.target.closest('.dash-card-toggle');
+      if (!toggle) return;
+      const id = toggle.dataset.target;
+      const card = grid.querySelector(`[data-id="${id}"]`);
+      if (!card) return;
+      card.classList.toggle('dash-card-wide');
+      const widths = Store.getCardWidths();
+      widths[id] = card.classList.contains('dash-card-wide');
+      Store.saveCardWidths(widths);
+    });
+  },
+
+  applyCardWidths() {
+    const grid = document.querySelector('.dashboard-grid');
+    if (!grid) return;
+    const widths = Store.getCardWidths();
+    Object.keys(widths).forEach(id => {
+      if (!widths[id]) return;
+      const card = grid.querySelector(`[data-id="${id}"]`);
+      if (card) card.classList.add('dash-card-wide');
+    });
   },
 
   initSpendingExpand() {

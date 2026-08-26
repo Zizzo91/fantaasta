@@ -362,7 +362,26 @@ textarea {
 
 .dash-card-handle:active { cursor: grabbing; }
 
+.dash-card-toggle {
+  cursor: pointer;
+  color: var(--text-muted);
+  user-select: none;
+  font-size: 0.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.dash-card-toggle:hover { opacity: 1; }
+
+.dash-card-wide .dash-card-toggle { opacity: 1; color: var(--primary); }
+
 .dash-card[data-id="player-compare"] {
+  grid-column: 1 / -1;
+}
+
+.dash-card-wide {
   grid-column: 1 / -1;
 }
 

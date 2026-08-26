@@ -52,6 +52,9 @@ const Store = {
   saveBudgetPlanner(data) { this._set('budget_planner', data); },
   getBudgetPlanner() { return this._get('budget_planner') || { P: 30, D: 25, C: 25, A: 20 }; },
 
+  saveCardWidths(data) { this._set('card_widths', data); },
+  getCardWidths() { return this._get('card_widths') || {}; },
+
   getAiCache() { return this._get('ai_cache') || {}; },
   saveAiCache(cache) { this._set('ai_cache', cache); },
 
@@ -245,7 +248,7 @@ const Store = {
 
   exportAll() {
     const data = {};
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'api_key', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths'];
     keys.forEach(k => { data[k] = this._get(k); });
     return JSON.stringify(data, null, 2);
   },
@@ -263,7 +266,7 @@ const Store = {
   },
 
   clearAll() {
-    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner'];
+    const keys = ['config', 'players', 'participants', 'wishlist', 'teams', 'auction_log', 'ai_cache', 'dashboard_order', 'spending_expanded', 'roster_expanded', 'preasta_plan', 'budget_planner', 'card_widths'];
     keys.forEach(k => this._remove(k));
   },
 
